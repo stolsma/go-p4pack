@@ -1,0 +1,4 @@
+[submodule "src/dpdk_src"]
+	path = src/dpdk_src
+	url = https://github.com/DPDK/dpdk.git
+	ignore = all

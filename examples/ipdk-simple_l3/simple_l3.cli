@@ -1,0 +1,29 @@
+; SPDX-License-Identifier: BSD-3-Clause
+; Copyright(c) 2020 Intel Corporation
+; Copyright(c) 2022 Sander Tolsma
+
+mempool MEMPOOL0 buffer 2304 pool 32K cache 256 cpu 0
+
+tap sw0
+tap sw1
+tap sw2
+tap sw3
+
+pipeline PIPELINE0 create 0
+
+pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
+pipeline PIPELINE0 port in 1 tap sw1 mempool MEMPOOL0 mtu 1500 bsz 1
+pipeline PIPELINE0 port in 2 tap sw2 mempool MEMPOOL0 mtu 1500 bsz 1
+pipeline PIPELINE0 port in 3 tap sw3 mempool MEMPOOL0 mtu 1500 bsz 1
+
+pipeline PIPELINE0 port out 0 tap sw0 bsz 1
+pipeline PIPELINE0 port out 1 tap sw1 bsz 1
+pipeline PIPELINE0 port out 2 tap sw2 bsz 1
+pipeline PIPELINE0 port out 3 tap sw3 bsz 1
+
+pipeline PIPELINE0 build ./examples/ipdk-simple_l3/simple_l3.spec
+pipeline PIPELINE0 table ipv4_host add ./examples/ipdk-simple_l3/l3_table.txt
+
+pipeline PIPELINE0 commit
+
+thread 1 pipeline PIPELINE0 enable
