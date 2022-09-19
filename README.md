@@ -3,7 +3,7 @@
 
 # DPDK Pipeline tests with P4 Programs
 
-This is a repository with a p4Runtime/gNOI API capable, DPDK SWX based, P4 programmable virtual soft switch.
+This is a repository with a p4Runtime/gNOI API capable, Golang + DPDK SWX based, P4 programmable virtual soft switch.
 
 # Installation, build & run docker container
 
@@ -37,34 +37,16 @@ docker run --rm -it --cap-add ALL --privileged stolsma/dpdk-infra
 
 ## Startup the DPDK SWX Pipeline driver
 
+TODO: Describe how the different compiled example programs can be run!
+
+The standard DPDK SWX example program can be run by:
+
 ``` bash
 sudo ./dpdk-pipeline -c 0x3 -- -s ./examples/ipdk-simple_l3/simple_l3.cli
 # sudo ./dpdk-pipeline -c 0x3 --log-level='.*,8' -- -s ./examples/ipdk-simple_l3/simple_l3.cli
 ```
 
-Connect to the CLI of the driver:
-
-```
-telnet 0.0.0.0 8086
-```
-
-Use ctrl+] ('^]') and then type 'quit' to stop the telnet session
-
-``` bash
-$ telnet 0.0.0.0 8086
-Trying 0.0.0.0...
-Connected to 0.0.0.0.
-Escape character is '^]'.
-
-Welcome!
-
-pipeline> ^]
-
-telnet> quit
-Connection closed.
-```
-
-## Test the DPDK SWX Pipeline driver
+## Test the Go DPDK SWX Pipeline driver example
 
 Setup network namespaced test environment with two hosts:
 
@@ -108,6 +90,10 @@ Remove the test namespace environment
 sudo ip netns del host0
 sudo ip netns del host1
 ```
+
+# Development Scratch Space
+
+TODO Remove or use in other parts of this README!
 
 ```
 pipeline PIPELINE0 stats
