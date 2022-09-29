@@ -5,6 +5,7 @@ package dpdkinfra
 
 import (
 	"errors"
+	"fmt"
 	"log"
 
 	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
@@ -87,6 +88,15 @@ func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint
 func (di *DpdkInfra) TapCreate(name string) error {
 	_, err := di.tapStore.Create(name)
 	return err
+}
+
+func (di *DpdkInfra) TapList(name string) (string, error) {
+	result := ""
+	err := di.tapStore.Iterate(func(key string, tap *dpdkswx.Tap) error {
+		result += fmt.Sprintf("  %s \n", tap.Name())
+		return nil
+	})
+	return result, err
 }
 
 func (di *DpdkInfra) RingCreate(name string, size uint32, numaNode uint32) error {
@@ -179,13 +189,24 @@ func (di *DpdkInfra) PrintThreadStatus() {
 	}
 }
 
+// get pipeline statistics. If name is filled then that specific pipeline statistics is retrieved else the statistics
+// of all pipelines is retrieved
 func (di *DpdkInfra) PipelineStats(name string) (string, error) {
-	pipeline := di.pipelineStore.Find(name)
-	if pipeline == nil {
-		return "", errors.New("pipeline doesn't exists")
+	if name != "" {
+		pipeline := di.pipelineStore.Find(name)
+		if pipeline == nil {
+			return "", errors.New("pipeline doesn't exists")
+		}
+		return pipeline.Stats(), nil
+	} else {
+		result := ""
+		err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
+			result += fmt.Sprintf("%s: \n", pipeline.Name())
+			result += pipeline.Stats()
+			return nil
+		})
+		return result, err
 	}
-
-	return pipeline.Stats(), nil
 }
 
 func Init(dpdkArgs []string) (*DpdkInfra, error) {

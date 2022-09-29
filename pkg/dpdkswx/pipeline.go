@@ -339,7 +339,7 @@ func (pl *Pipeline) PortIsValid() bool {
 }
 
 func (pl *Pipeline) Stats() string {
-	var result string = "Press CTRL-C to quit!\n"
+	var result string = ""
 
 	pipeInfo, err := pl.pipelineInfo()
 	if err != nil {

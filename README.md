@@ -1,3 +1,11 @@
+<!--
+/*
+ * Copyright 2021 - Sander Tolsma. All rights reserved
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+- -->
+
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
@@ -44,6 +52,12 @@ The standard DPDK SWX example program can be run by:
 ``` bash
 sudo ./dpdk-pipeline -c 0x3 -- -s ./examples/ipdk-simple_l3/simple_l3.cli
 # sudo ./dpdk-pipeline -c 0x3 --log-level='.*,8' -- -s ./examples/ipdk-simple_l3/simple_l3.cli
+```
+
+## Connect to the driver ssh terminal
+
+``` bash
+ssh -p 2222 user@0.0.0.0
 ```
 
 ## Test the Go DPDK SWX Pipeline driver example
@@ -216,9 +230,3 @@ pipeline <pipeline_name> stats
 thread <thread_id> pipeline <pipeline_name> enable
 thread <thread_id> pipeline <pipeline_name> disable
 ```
-
-# License
-
-Copyright 2021 - Sander Tolsma. All rights reserved
-
-SPDX-License-Identifier: BSD-3-Clause

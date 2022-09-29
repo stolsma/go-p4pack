@@ -21,6 +21,7 @@ func CreateTapStore() TapStore {
 	return make(TapStore)
 }
 
+// Find tap record with name
 func (ts TapStore) Find(name string) *dpdkswx.Tap {
 	if name == "" {
 		return nil
@@ -56,4 +57,17 @@ func (ts TapStore) Clear() {
 	for _, tap := range ts {
 		tap.Free()
 	}
+}
+
+func (ts TapStore) Iterate(fn func(key string, tap *dpdkswx.Tap) error) error {
+	if fn != nil {
+		for k, v := range ts {
+			if err := fn(k, v); err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("no function to call")
+	}
+	return nil
 }

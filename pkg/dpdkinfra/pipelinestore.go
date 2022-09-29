@@ -3,7 +3,11 @@
 
 package dpdkinfra
 
-import "github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+import (
+	"errors"
+
+	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+)
 
 // PipelineStore represents a store of created Pipeline records
 type PipelineStore map[string]*dpdkswx.Pipeline
@@ -44,4 +48,17 @@ func (pls PipelineStore) Clear() {
 	for _, pipeline := range pls {
 		pipeline.Free()
 	}
+}
+
+func (pls PipelineStore) Iterate(fn func(key string, pipeline *dpdkswx.Pipeline) error) error {
+	if fn != nil {
+		for k, v := range pls {
+			if err := fn(k, v); err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("no function to call")
+	}
+	return nil
 }

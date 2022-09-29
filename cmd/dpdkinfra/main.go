@@ -1,53 +1,28 @@
+// Copyright 2022 - Sander Tolsma. All rights reserved
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 // CGO_LDFLAGS=`pkg-config --libs libdpdk` CGO_CFLAGS=`pkg-config --cflags libdpdk`
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"strings"
-	"time"
 
 	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4dpdk-vswitch/pkg/signals"
 )
 
-func printStatistics(dpdki *dpdkinfra.DpdkInfra, interval int, ctx context.Context, stopCh <-chan struct{}) {
-	go func(interval int, ctx context.Context) {
-		var prevLines int = 0
-		for {
-			timeout := time.Duration(interval) * time.Second
-			ctx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-			select {
-			case <-ctx.Done():
-				// print statistics
-				stats, err := dpdki.PipelineStats("PIPELINE0")
-				if err != nil {
-					log.Println("Pipeline Stats err:", err)
-					return
-				}
-				for i := 0; i <= prevLines; i++ {
-					fmt.Printf("\033[A") // move the cursor up
-				}
-				println(stats)
-				prevLines = strings.Count(stats, "\n")
-
-			case <-stopCh:
-				// stop printing
-				return
-			}
-		}
-	}(interval, ctx)
-}
-
-//"-n", "4",
-
 func main() {
-	dpdkArgs := []string{"dummy", "-c", "3", "--log-level", ".*,8"}
-	taps := [...]string{"sw0", "sw1", "sw2", "sw3"}
-	ctx := context.Background()
+	dpdkArgs := []string{"dummy", "-c", "3", "-n", "4"}
+	//	dpdkArgs := []string{"dummy", "-c", "3", "--log-level", ".*,8"}
+
+	// the context for the app with cancel function
+	appCtx, cancelCtx := context.WithCancel(context.Background())
+
+	// initialize wait for signals to react on during packet processing
+	log.Println("p4vswitch pipeline running!")
+	stopCh := signals.RegisterSignalHandlers()
 
 	// os.Args
 	dpdki, err := dpdkinfra.Init(dpdkArgs)
@@ -55,9 +30,34 @@ func main() {
 		log.Fatalln("DPDKInfraInit failed:", err)
 	}
 
+	// create an example pipeline through the Go API
+	examplePipelineConfig(dpdki)
+
+	// start ssh cli server
+	startSsh(appCtx, dpdki)
+
+	// wait for stop signal CTRL-C or forced termination
+	<-stopCh
+
+	// Cancel the App context to let all running sessions close in a neat way
+	cancelCtx()
+	println()
+	log.Println("p4vswitch pipeline requested to stop!")
+
+	// cleanup DpdkInfra environment
+	dpdki.Cleanup()
+
+	// All is handled...
+	log.Println("p4vswitch stopped!")
+}
+
+// Create an example pipeline through the Go API
+func examplePipelineConfig(dpdki *dpdkinfra.DpdkInfra) {
+	taps := [...]string{"sw0", "sw1", "sw2", "sw3"}
+
 	// Create mempool
 	// mempool MEMPOOL0 buffer 2304 pool 32K cache 256 cpu 0
-	err = dpdki.MempoolCreate("MEMPOOL0", 2304, 32*1024, 256, 0)
+	err := dpdki.MempoolCreate("MEMPOOL0", 2304, 32*1024, 256, 0)
 	if err != nil {
 		log.Fatalln("Pktmbuf Mempool create err:", err)
 	}
@@ -123,22 +123,4 @@ func main() {
 		log.Fatalln("PipelineEnable err:", err)
 	}
 	log.Println("Pipeline Enabled!")
-
-	// initialize wait for signals to react on during packet processing
-	log.Println("p4vswitch pipeline running!")
-	stopCh := signals.RegisterSignalHandlers()
-
-	// start prining statistics every second
-	printStatistics(dpdki, 1, ctx, stopCh)
-
-	// wait for stop signal CTRL-C or forced termination
-	<-stopCh
-	println()
-	log.Println("p4vswitch pipeline requested to stop!")
-
-	// cleanup DpdkInfra environment
-	dpdki.Cleanup()
-
-	// All is handled...
-	log.Println("p4vswitch stopped!")
 }
