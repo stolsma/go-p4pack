@@ -8,6 +8,7 @@ package dpdkswx
 
 #include <stdlib.h>
 #include <string.h>
+#include <bsd/string.h>
 #include <netinet/in.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>

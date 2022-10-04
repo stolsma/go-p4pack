@@ -31,22 +31,29 @@ do
 done
 
 readonly DEFAULT_UBUNTU_VERSION=20.04
-readonly DEFAULT_IMAGE_NAME=ghcr.io/stolsma/p4c
+readonly DEFAULT_DPDK_VERSION=22.07
+readonly DEFAULT_IMAGE_NAME=ghcr.io/stolsma/dpdk-base
 
 export UBUNTU_VERSION=${UBUNTU_VERSION:-$DEFAULT_UBUNTU_VERSION}
+export DPDK_VERSION=${DPDK_VERSION:-$DEFAULT_DPDK_VERSION}
 export IMAGE_NAME=${IMAGE_NAME:-$DEFAULT_IMAGE_NAME}
 
-readonly DPDK_TAG=$IMAGE_NAME:latest
+readonly DPDK_TAG=$IMAGE_NAME:dpdk-$DPDK_VERSION-ubuntu-$UBUNTU_VERSION
+
+echo Ubuntu version: "$UBUNTU_VERSION"
+echo DPDK version: "$DPDK_VERSION"
+echo DPDK Tag: "$DPDK_TAG"
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 pushd "$THIS_DIR" > /dev/null
   docker pull "ubuntu:$UBUNTU_VERSION"
   docker build \
-    -t "$DPDK_TAG" \
     --build-arg UBUNTU_VERSION="$UBUNTU_VERSION" \
+    --build-arg DPDK_VERSION="$DPDK_VERSION" \
+    --progress=plain \
+    --tag "$DPDK_TAG" \
     .
-    
   if $PUSH; then
     docker push "$DPDK_TAG"
   fi
