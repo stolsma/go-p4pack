@@ -3,7 +3,7 @@
 
 package dpdkinfra
 
-import "github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+import "github.com/stolsma/go-p4pack/pkg/dpdkswx"
 
 // TableStore represents a store of Table records
 type TableStore map[string]*dpdkswx.Table

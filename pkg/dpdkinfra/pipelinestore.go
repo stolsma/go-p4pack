@@ -6,7 +6,7 @@ package dpdkinfra
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 // PipelineStore represents a store of created Pipeline records

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"unsafe"
 
-	lled "github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx/ethdev"
+	lled "github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
 const RETA_CONF_SIZE = (C.RTE_ETH_RSS_RETA_SIZE_512 / C.RTE_ETH_RETA_GROUP_SIZE)

@@ -9,8 +9,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkinfra"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/signals"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/signals"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 type DpdkInfra struct {

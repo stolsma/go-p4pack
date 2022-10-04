@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkicli"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkinfra"
-	shell "github.com/stolsma/go-p4dpdk-vswitch/pkg/sshshell"
+	"github.com/stolsma/go-p4pack/pkg/dpdkicli"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	shell "github.com/stolsma/go-p4pack/pkg/sshshell"
 )
 
 type cliHandler struct {

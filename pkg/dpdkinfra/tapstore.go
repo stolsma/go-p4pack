@@ -11,7 +11,7 @@ import "C"
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 // TapStore represents a store of created Tap records

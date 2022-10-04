@@ -6,7 +6,7 @@ package dpdkinfra
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 // EthdevStore represents a store of created DPDK Ethdev interfaces

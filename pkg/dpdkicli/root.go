@@ -4,7 +4,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
 func getDpdki(cmd *cobra.Command) *dpdkinfra.DpdkInfra {
@@ -16,7 +16,7 @@ func Create(rw io.ReadWriter) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "",
 		Short: "DPDKInfra is a Go/DPDK SWX test program",
-		Long:  `Testing Go with DPDK - SWX. Complete documentation is available at https://github.com/stolsma/p4vswitch/`,
+		Long:  `Testing Go with DPDK - SWX. Complete documentation is available at https://github.com/stolsma/go-p4pack/`,
 		Run: func(cmd *cobra.Command, args []string) {
 		},
 	}

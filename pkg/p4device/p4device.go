@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/gnmi"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/p4rt"
+	"github.com/stolsma/go-p4pack/pkg/gnmi"
+	"github.com/stolsma/go-p4pack/pkg/p4rt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -27,16 +27,19 @@ type P4Device struct {
 }
 
 // New returns a new initialized P4Device instance.
-func New(addr string, opts ...grpc.ServerOption) (*P4Device, error) {
+func New(addr string, opts ...grpc.ServerOption) (d *P4Device, err error) {
 	gnmiGrpcServer := grpc.NewServer(opts...)
 	p4rtGrpcServer := grpc.NewServer(opts...)
 
-	d := &P4Device{
+	d = &P4Device{
 		addr:           addr,
 		gnmiGrpcServer: gnmiGrpcServer,
-		gnmiServer:     gnmi.New(gnmiGrpcServer),
 		p4rtGrpcServer: p4rtGrpcServer,
 		p4rtServer:     p4rt.New(p4rtGrpcServer),
+	}
+	d.gnmiServer, err = gnmi.New(gnmiGrpcServer, "Test")
+	if err != nil {
+		return nil, fmt.Errorf("failed to start gNMI server: %v", err)
 	}
 
 	reflection.Register(gnmiGrpcServer)

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"golang.org/x/net/context"
 )
 

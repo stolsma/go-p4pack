@@ -18,8 +18,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	status "google.golang.org/grpc/status"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/p4device"
-	p4DpdkTarget "github.com/stolsma/go-p4dpdk-vswitch/pkg/tdi/targets/p4-dpdk-target"
+	"github.com/stolsma/go-p4pack/pkg/p4device"
+	p4DpdkTarget "github.com/stolsma/go-p4pack/pkg/tdi/targets/p4-dpdk-target"
 )
 
 func waitForSignal() {

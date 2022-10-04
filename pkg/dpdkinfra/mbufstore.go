@@ -6,7 +6,7 @@ package dpdkinfra
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4dpdk-vswitch/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 // PktmbufStore represents a store of created DPDK Pktmbuf memory buffers
