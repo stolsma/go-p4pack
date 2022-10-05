@@ -31,8 +31,7 @@ func (ps PktmbufStore) Create(
 	bufferSize uint32,
 	poolSize uint32,
 	cacheSize uint32,
-	cpuId int) (*dpdkswx.Pktmbuf, error) {
-
+	cpuID int) (*dpdkswx.Pktmbuf, error) {
 	var pktmbuf dpdkswx.Pktmbuf
 
 	if ps.Find(name) != nil {
@@ -45,7 +44,7 @@ func (ps PktmbufStore) Create(
 	}
 
 	// initialize
-	err := pktmbuf.Init(name, bufferSize, poolSize, cacheSize, cpuId, clean)
+	err := pktmbuf.Init(name, bufferSize, poolSize, cacheSize, cpuID, clean)
 	if err != nil {
 		return nil, err
 	}

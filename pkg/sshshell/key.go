@@ -78,7 +78,6 @@ func (r *HostKeyResolver) ResolveOption() ssh.Option {
 		return func(s *ssh.Server) error {
 			return nil
 		}
-	} else {
-		return ssh.HostKeyFile(r.Resolve())
 	}
+	return ssh.HostKeyFile(r.Resolve())
 }

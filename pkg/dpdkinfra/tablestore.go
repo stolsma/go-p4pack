@@ -21,7 +21,7 @@ func (ts TableStore) Find(name string) *dpdkswx.Table {
 }
 
 // Create Table record. Returns a pointer to a Table structure or nil with error.
-func (ts TableStore) Create(p *dpdkswx.Pipeline, tableId uint) (*dpdkswx.Table, error) {
+func (ts TableStore) Create(p *dpdkswx.Pipeline, tableID uint) (*dpdkswx.Table, error) {
 	var table dpdkswx.Table
 
 	// create callback function called when record is freed
@@ -29,7 +29,7 @@ func (ts TableStore) Create(p *dpdkswx.Pipeline, tableId uint) (*dpdkswx.Table, 
 		//		delete(ts, name)
 	}
 
-	err := table.Init(p, tableId, clean)
+	err := table.Init(p, tableID, clean)
 	return &table, err
 }
 

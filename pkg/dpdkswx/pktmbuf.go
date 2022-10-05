@@ -16,14 +16,14 @@ import (
 	"unsafe"
 )
 
-var BUFFER_SIZE_MIN int = C.sizeof_struct_rte_mbuf + C.RTE_PKTMBUF_HEADROOM
+var BufferSizeMin int = C.sizeof_struct_rte_mbuf + C.RTE_PKTMBUF_HEADROOM
 
 // Pktmbuf represents a DPDK Packet memory buffer (pktmbuf) stores in a Pktmbuf store
 type Pktmbuf struct {
-	name        string
-	m           *C.struct_rte_mempool
-	buffer_size uint32
-	clean       func()
+	name       string
+	m          *C.struct_rte_mempool
+	bufferSize uint32
+	clean      func()
 }
 
 // Create pktmbuf with corresponding pktmbuf mempool memory. Returns a pointer to a Pktmbuf
@@ -33,9 +33,8 @@ func (pm *Pktmbuf) Init(
 	bufferSize uint32,
 	poolSize uint32,
 	cacheSize uint32,
-	cpuId int,
+	cpuID int,
 	clean func()) error {
-
 	var m *C.struct_rte_mempool
 
 	// Check input params
@@ -43,7 +42,7 @@ func (pm *Pktmbuf) Init(
 		return errors.New("no name given")
 	}
 
-	if bufferSize < (uint32)(BUFFER_SIZE_MIN) {
+	if bufferSize < (uint32)(BufferSizeMin) {
 		return errors.New("buffer size to small")
 	}
 
@@ -60,7 +59,7 @@ func (pm *Pktmbuf) Init(
 		C.uint(cacheSize),
 		C.ushort(0),
 		C.ushort(bufferSize-C.sizeof_struct_rte_mbuf),
-		C.int(cpuId),
+		C.int(cpuID),
 	)
 	if m == nil {
 		return err()
@@ -69,7 +68,7 @@ func (pm *Pktmbuf) Init(
 	// Node fill in
 	pm.name = name
 	pm.m = m
-	pm.buffer_size = bufferSize
+	pm.bufferSize = bufferSize
 	pm.clean = clean
 
 	return nil
@@ -85,7 +84,7 @@ func (pm *Pktmbuf) Mempool() *C.struct_rte_mempool {
 
 func (pm *Pktmbuf) Free() {
 	if pm.m != nil {
-		C.rte_mempool_free((*C.struct_rte_mempool)(pm.m))
+		C.rte_mempool_free(pm.m)
 		pm.m = nil
 	}
 

@@ -48,7 +48,7 @@ func (h *cliHandler) HandleLine(ctx context.Context, line string) error {
 	// set context with dpdki structure and create annotations map
 	// TODO solve linting error in correct way
 	//lint:ignore SA1029 needs to be solved later
-	vCtx := context.WithValue(ctx, "dpdki", h.dpdki)
+	vCtx := context.WithValue(ctx, "dpdki", h.dpdki) //nolint:revive,staticcheck
 	h.cli.Annotations = make(map[string]string)
 
 	// execute given textline
@@ -59,21 +59,21 @@ func (h *cliHandler) HandleLine(ctx context.Context, line string) error {
 	// executed command was exit?
 	if h.cli.Annotations["exit"] != "" && h.cli.Annotations["exit"] == "exit" {
 		return io.EOF
-	} else {
-		return nil
 	}
+
+	return nil
 }
 
 // Handle EOF input from remote user/app
-func (h *cliHandler) HandleEof() error {
+func (h *cliHandler) HandleEOF() error {
 	log.Printf("EOF from %s", h.s.InstanceName())
 	return nil
 }
 
 // Start a SSH server with given context and DPDK Infra API
-func startSsh(ctx context.Context, dpdki *dpdkinfra.DpdkInfra) {
+func startSSH(ctx context.Context, dpdki *dpdkinfra.DpdkInfra) {
 	go func(ctx context.Context, dpdki *dpdkinfra.DpdkInfra) {
-		sshServer := &shell.SshServer{
+		sshServer := &shell.SSHServer{
 			Config: &shell.Config{
 				Bind: ":2222",
 				Users: map[string]shell.User{

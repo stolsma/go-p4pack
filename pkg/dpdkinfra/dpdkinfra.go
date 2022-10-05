@@ -80,8 +80,8 @@ func (di *DpdkInfra) Cleanup() {
 	*/
 }
 
-func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint32, cacheSize uint32, cpuId int) error {
-	_, err := di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuId)
+func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint32, cacheSize uint32, cpuID int) error {
+	_, err := di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuID)
 	return err
 }
 
@@ -114,7 +114,7 @@ func (di *DpdkInfra) PipelineCreate(name string, numaNode int) error {
 	return err
 }
 
-func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portId int, tName string, mName string, mtu int, bsz int) error {
+func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName string, mName string, mtu int, bsz int) error {
 	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
@@ -132,10 +132,10 @@ func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portId int, tName st
 
 	pipeline.PortIsValid()
 
-	return pipeline.AddInputPortTap(portId, tap, pktmbuf, mtu, bsz)
+	return pipeline.AddInputPortTap(portID, tap, pktmbuf, mtu, bsz)
 }
 
-func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portId int, tName string, bsz int) error {
+func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName string, bsz int) error {
 	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
@@ -148,7 +148,7 @@ func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portId int, tName s
 
 	pipeline.PortIsValid()
 
-	return pipeline.AddOutputPortTap(portId, tap, bsz)
+	return pipeline.AddOutputPortTap(portID, tap, bsz)
 }
 
 func (di *DpdkInfra) PipelineBuild(name string, specfile string) error {
@@ -198,15 +198,16 @@ func (di *DpdkInfra) PipelineStats(name string) (string, error) {
 			return "", errors.New("pipeline doesn't exists")
 		}
 		return pipeline.Stats(), nil
-	} else {
-		result := ""
-		err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
-			result += fmt.Sprintf("%s: \n", pipeline.Name())
-			result += pipeline.Stats()
-			return nil
-		})
-		return result, err
 	}
+
+	result := ""
+	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
+		result += fmt.Sprintf("%s: \n", pipeline.Name())
+		result += pipeline.Stats()
+		return nil
+	})
+
+	return result, err
 }
 
 func Init(dpdkArgs []string) (*DpdkInfra, error) {

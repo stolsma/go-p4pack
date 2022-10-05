@@ -205,14 +205,14 @@ func (pid Port) RssHashUpdate(conf *RssConf) error {
 		rssConf.rss_key = (*C.uchar)(p)
 	}
 
-	return errget(C.rte_eth_dev_rss_hash_update(C.ushort(pid), &rssConf))
+	return errget(C.rte_eth_dev_rss_hash_update(C.ushort(pid), &rssConf)) //nolint:gocritic
 }
 
 // RssHashConfGet retrieves current configuration of Receive Side
 // Scaling hash computation of Ethernet device.
 func (pid Port) RssHashConfGet(conf *RssConf) error {
 	var rssConf C.struct_rte_eth_rss_conf
-	rc := C.rte_eth_dev_rss_hash_conf_get(C.ushort(pid), &rssConf)
+	rc := C.rte_eth_dev_rss_hash_conf_get(C.ushort(pid), &rssConf) //nolint:gocritic
 
 	sh := (*reflect.SliceHeader)(unsafe.Pointer(&conf.Key))
 	sh.Data = uintptr(unsafe.Pointer(rssConf.rss_key))
@@ -372,7 +372,7 @@ func OptRxMode(conf RxMode) Option {
 }
 
 func (c *ethConf) setRxPktLen(n uint32) {
-	rxptr := unsafe.Pointer((*C.struct_rte_eth_rxmode)(&c.conf.rxmode))
+	rxptr := unsafe.Pointer(&c.conf.rxmode)
 	p := unsafe.Pointer(uintptr(rxptr) + C.RX_MODE_LEN_OFF)
 	*(*C.uint32_t)(p) = (C.uint32_t)(n)
 }
@@ -397,13 +397,13 @@ func OptTxMode(conf TxMode) Option {
 			pvid:     C.ushort(conf.Pvid),
 		}
 		if conf.HwVlanRejectTagged {
-			C.set_tx_reject_tagged(&c.conf.txmode)
+			C.set_tx_reject_tagged(&c.conf.txmode) //nolint:gocritic
 		}
 		if conf.HwVlanRejectUntagged {
-			C.set_tx_reject_untagged(&c.conf.txmode)
+			C.set_tx_reject_untagged(&c.conf.txmode) //nolint:gocritic
 		}
 		if conf.HwVlanInsertPvid {
-			C.set_tx_insert_pvid(&c.conf.txmode)
+			C.set_tx_insert_pvid(&c.conf.txmode) //nolint:gocritic
 		}
 	}}
 }
@@ -449,7 +449,7 @@ func (pid Port) DevConfigure(nrxq, ntxq uint16, opts ...Option) error {
 	defer ec.free()
 
 	return errget(C.rte_eth_dev_configure(C.ushort(pid), C.ushort(nrxq),
-		C.ushort(ntxq), &ec.conf))
+		C.ushort(ntxq), &ec.conf)) //nolint:gocritic
 }
 
 // OptRxqConf specifies the configuration an RX ring of an Ethernet
@@ -545,7 +545,7 @@ func (pid Port) RxqSetup(qid, nDesc uint16, mp *RteMempool, opts ...QueueOption)
 
 	return errget(C.rte_eth_rx_queue_setup(C.ushort(pid), C.ushort(qid),
 		C.ushort(nDesc), C.uint(conf.socket), &conf.rx,
-		(*C.struct_rte_mempool)(unsafe.Pointer(mp))))
+		(*C.struct_rte_mempool)(unsafe.Pointer(mp)))) //nolint:gocritic
 }
 
 // TxqSetup allocates and set up a transmit queue for an Ethernet
@@ -607,7 +607,7 @@ func (pid Port) TxqSetup(qid, nDesc uint16, opts ...QueueOption) error {
 	}
 
 	return errget(C.rte_eth_tx_queue_setup(C.ushort(pid), C.ushort(qid),
-		C.ushort(nDesc), C.uint(conf.socket), &conf.tx))
+		C.ushort(nDesc), C.uint(conf.socket), &conf.tx)) //nolint:gocritic
 }
 
 // Reset a Ethernet device and keep its port id.

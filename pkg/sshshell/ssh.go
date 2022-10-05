@@ -15,7 +15,7 @@ import (
 
 // SshServer manages acceptance of and authenticating SSH connections and delegating input to a Handler for each
 // session instantiated by the given HandlerFactory.
-type SshServer struct {
+type SSHServer struct {
 	*Config
 	HandlerFactory
 	cancelFn context.CancelFunc
@@ -29,13 +29,13 @@ type Handler interface {
 	// is closed.
 	HandleLine(ctx context.Context, line string) error
 
-	// HandleEof is called when the user types Control-D. If an error is returned, then the error is reported back to the
+	// HandleEOF is called when the user types Control-D. If an error is returned, then the error is reported back to the
 	// SSH client and the SSH session is closed.
-	HandleEof() error
+	HandleEOF() error
 }
 
 // Listen will block listening for new SSH connections and serving those with a new instance of Shell/Handler.
-func (s *SshServer) Listen(ctx context.Context) error {
+func (s *SSHServer) Listen(ctx context.Context) error {
 	config := s.Config
 	if config == nil {
 		config = &Config{}
@@ -81,7 +81,7 @@ func (s *SshServer) Listen(ctx context.Context) error {
 
 					if err != nil {
 						if err == io.EOF {
-							err = handler.HandleEof()
+							err = handler.HandleEOF()
 							if err != nil && err != io.EOF {
 								endSessionWithError(session, shell, err)
 							}
@@ -110,7 +110,7 @@ func (s *SshServer) Listen(ctx context.Context) error {
 }
 
 // Stop the SSH server and any open session!
-func (s *SshServer) Quit() {
+func (s *SSHServer) Quit() {
 	s.cancelFn()
 }
 

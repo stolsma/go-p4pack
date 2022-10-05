@@ -72,9 +72,9 @@ type Pipeline struct {
 	timerPeriodms uint32                         //
 	build         bool                           // the pipeline is build
 	enabled       bool                           // the pipeline is enabled
-	thread_id     uint32                         // thread pipeline is running on
-	cpu_id        uint32                         //
-	net_port_mask [4]uint64                      //
+	threadID      uint32                         // thread pipeline is running on
+	cpuID         uint32                         //
+	netPortMask   [4]uint64                      //
 	clean         func()                         // the callback function called at clear
 }
 
@@ -83,7 +83,7 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	var p *C.struct_rte_swx_pipeline
 
 	// Resource create
-	status := C.rte_swx_pipeline_config(&p, (C.int)(numaNode))
+	status := int(C.rte_swx_pipeline_config(&p, (C.int)(numaNode))) //nolint:gocritic
 	if status != 0 {
 		C.rte_swx_pipeline_free(p)
 		return err(status)
@@ -104,8 +104,8 @@ func (pl *Pipeline) Name() string {
 	return pl.name
 }
 
-func (pl *Pipeline) ThreadId() uint32 {
-	return pl.thread_id
+func (pl *Pipeline) ThreadID() uint32 {
+	return pl.threadID
 }
 
 func (pl *Pipeline) Pipeline() *C.struct_rte_swx_pipeline {
@@ -124,7 +124,7 @@ func (pl *Pipeline) Free() {
 }
 
 // pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
-func (pl *Pipeline) AddInputPortTap(portId int, tap *Tap, pktmbuf *Pktmbuf, mtu int, bsz int) error {
+func (pl *Pipeline) AddInputPortTap(portID int, tap *Tap, pktmbuf *Pktmbuf, mtu int, bsz int) error {
 	var params C.struct_rte_swx_port_fd_reader_params
 
 	if tap == nil {
@@ -141,7 +141,7 @@ func (pl *Pipeline) AddInputPortTap(portId int, tap *Tap, pktmbuf *Pktmbuf, mtu 
 	params.burst_size = (C.uint)(bsz)
 	ptype := C.CString("fd")
 
-	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portId), ptype, unsafe.Pointer(&params))
+	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, unsafe.Pointer(&params)) //nolint:gocritic
 	C.free(unsafe.Pointer(ptype))
 
 	if status != 0 {
@@ -151,7 +151,7 @@ func (pl *Pipeline) AddInputPortTap(portId int, tap *Tap, pktmbuf *Pktmbuf, mtu 
 }
 
 // pipeline PIPELINE0 port out 0 tap sw0 bsz 1
-func (pl *Pipeline) AddOutputPortTap(portId int, tap *Tap, bsz int) error {
+func (pl *Pipeline) AddOutputPortTap(portID int, tap *Tap, bsz int) error {
 	var params C.struct_rte_swx_port_fd_writer_params
 
 	if tap == nil {
@@ -162,7 +162,7 @@ func (pl *Pipeline) AddOutputPortTap(portId int, tap *Tap, bsz int) error {
 	params.burst_size = (C.uint)(bsz)
 	ptype := C.CString("fd")
 
-	status := C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portId), ptype, unsafe.Pointer(&params))
+	status := int(C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, unsafe.Pointer(&params))) //nolint:gocritic
 	C.free(unsafe.Pointer(ptype))
 
 	if status != 0 {
@@ -182,7 +182,7 @@ func (pl *Pipeline) Build(specfile string) error {
 
 	pctl := C.rte_swx_ctl_pipeline_create(pl.p)
 	if pctl == nil {
-		//rte_swx_pipeline_free(pipeline)
+		// rte_swx_pipeline_free(pipeline)
 		return errors.New("rte_swx_ctl_pipeline_create error")
 	}
 	pl.ctl = pctl
@@ -197,17 +197,17 @@ func (pl *Pipeline) Commit() error {
 	return err(res)
 }
 
-func (pl *Pipeline) Enable(threadId uint32) error {
+func (pl *Pipeline) Enable(threadID uint32) error {
 	if pl.enabled {
 		return errors.New("pipeline already enabled")
 	}
 
-	err := threadPipelineEnable(threadId, pl)
+	err := threadPipelineEnable(threadID, pl)
 	if err != nil {
 		return err
 	}
 
-	pl.thread_id = threadId
+	pl.threadID = threadID
 	pl.enabled = true
 
 	return nil
@@ -256,8 +256,7 @@ func (pl *Pipeline) PortOutStats(port int) (*PortOutStats, error) {
 
 type TableStats C.struct_rte_swx_table_stats
 
-func (pl *Pipeline) TableStats(tableId uint) (*TableStats, error) {
-
+func (pl *Pipeline) TableStats(tableID uint) (*TableStats, error) {
 	//	_, err := GetTable(pl, tableId)
 	//	if err != nil {
 	//		return nil, err
@@ -339,7 +338,7 @@ func (pl *Pipeline) PortIsValid() bool {
 }
 
 func (pl *Pipeline) Stats() string {
-	var result string = ""
+	var result string
 
 	pipeInfo, err := pl.pipelineInfo()
 	if err != nil {

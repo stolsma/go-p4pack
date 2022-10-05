@@ -78,7 +78,8 @@ func (s *Shell) Read() (string, error) {
 		if amount > 0 {
 			ch := buf[0]
 			if s.inEsc {
-				if s.inCsi {
+				switch {
+				case s.inCsi:
 					s.csiSequence = append(s.csiSequence, ch)
 					if ch >= 0x40 || ch <= 0x7e {
 						err := s.handleCsiSequence()
@@ -86,9 +87,11 @@ func (s *Shell) Read() (string, error) {
 							return "", err
 						}
 					}
-				} else if ch == CSI {
+
+				case ch == CSI:
 					s.inCsi = true
-				} else {
+
+				default:
 					fmt.Printf("Can't handle ESC sequence: %q\n", ch)
 					return "", errors.New("unsupported ESC sequence")
 				}
@@ -260,9 +263,9 @@ func (s *Shell) cursorDown() error {
 
 	if s.historyShift == 0 {
 		return s.eraseCurrent()
-	} else {
-		return s.outputShiftedHistory()
 	}
+
+	return s.outputShiftedHistory()
 }
 
 func (s *Shell) Bell() error {

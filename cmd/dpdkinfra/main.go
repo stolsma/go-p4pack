@@ -34,7 +34,7 @@ func main() {
 	examplePipelineConfig(dpdki)
 
 	// start ssh cli server
-	startSsh(appCtx, dpdki)
+	startSSH(appCtx, dpdki)
 
 	// wait for stop signal CTRL-C or forced termination
 	<-stopCh

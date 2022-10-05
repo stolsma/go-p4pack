@@ -44,7 +44,7 @@ func initPipeline(parent *cobra.Command) {
 				printSinglePipelineStats(cmd, dpdki, plName, 0)
 			} else {
 				cmd.Printf("Press CTRL-C to quit!\n")
-				printRPipelineStats(cmd, dpdki, plName, re, ctx)
+				printRPipelineStats(ctx, cmd, dpdki, plName, re)
 
 				// wait for CTRL-C or
 				buf := make([]byte, 1)
@@ -75,9 +75,9 @@ func initPipeline(parent *cobra.Command) {
 	parent.AddCommand(pipeline)
 }
 
-func printRPipelineStats(cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string, repeat bool, ctx context.Context) {
+func printRPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string, repeat bool) {
 	go func(interval int, ctx context.Context) {
-		var prevLines int = 0
+		var prevLines int
 		for repeat {
 			timeout := time.Duration(interval) * time.Second
 			tCtx, tCancel := context.WithTimeout(ctx, timeout)

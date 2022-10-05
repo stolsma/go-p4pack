@@ -67,7 +67,7 @@ func (tap *Tap) Init(name string, clean func()) error {
 
 	// Node fill in
 	tap.name = name
-	tap.fd = (C.int)(fd)
+	tap.fd = fd
 	tap.clean = clean
 
 	return nil

@@ -24,7 +24,7 @@ func threadPipelineEnable(threadid uint32, pipeline *Pipeline) error {
 }
 
 func threadPipelineDisable(pipeline *Pipeline) error {
-	res := C.thread_pipeline_disable(C.uint32_t(pipeline.ThreadId()), pipeline.p)
+	res := C.thread_pipeline_disable(C.uint32_t(pipeline.ThreadID()), pipeline.p)
 
 	return err(res)
 }
@@ -43,14 +43,10 @@ func ThreadFree() error {
 	return err(res)
 }
 
-func ThreadIsRunning(threadId uint) bool {
-	threadState := C.rte_eal_get_lcore_state((C.uint32_t)(threadId))
+func ThreadIsRunning(threadID uint) bool {
+	threadState := C.rte_eal_get_lcore_state((C.uint32_t)(threadID))
 
-	if threadState == C.RUNNING {
-		return true
-	} else {
-		return false
-	}
+	return threadState == C.RUNNING
 }
 
 func MainThreadInit() error {

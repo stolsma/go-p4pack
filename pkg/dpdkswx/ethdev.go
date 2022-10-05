@@ -22,32 +22,32 @@ import (
 	lled "github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
-const RETA_CONF_SIZE = (C.RTE_ETH_RSS_RETA_SIZE_512 / C.RTE_ETH_RETA_GROUP_SIZE)
+const RetaConfSize = (C.RTE_ETH_RSS_RETA_SIZE_512 / C.RTE_ETH_RETA_GROUP_SIZE)
 
-const LINK_RXQ_RSS_MAX = 16
+const LinkRxqRssMax = 16
 
 type EthdevParamsRss struct {
-	queue_id [LINK_RXQ_RSS_MAX]uint32
-	n_queues uint32
+	queueID [LinkRxqRssMax]uint32
+	nQueues uint32
 }
 
 type EthdevParams struct {
 	devName           string
 	devArgs           string
-	portId            uint16 // Valid only when *dev_name* is NULL.
+	portID            uint16 // Valid only when *dev_name* is NULL.
 	devHotplugEnabled bool
 
 	rx struct {
-		mtu        uint32
-		n_queues   uint16
-		queue_size uint32
-		mempool    *Pktmbuf
-		rss        *EthdevParamsRss
+		mtu       uint32
+		nQueues   uint16
+		queueSize uint32
+		mempool   *Pktmbuf
+		rss       *EthdevParamsRss
 	}
 
 	tx struct {
-		n_queues   uint16
-		queue_size uint32
+		nQueues   uint16
+		queueSize uint32
 	}
 
 	promiscuous bool
@@ -55,27 +55,27 @@ type EthdevParams struct {
 
 // Ethdev represents a Ethdev record
 type Ethdev struct {
-	name     string
-	dev_name string
-	portId   lled.Port
-	nRxQ     uint16
-	nTxQ     uint16
-	clean    func()
+	name    string
+	devName string
+	portID  lled.Port
+	nRxQ    uint16
+	nTxQ    uint16
+	clean   func()
 }
 
 // Create Link interface. Returns a pointer to a Link structure or nil with error.
 func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) error {
-	var port_info lled.DevInfo
-	var port_id lled.Port
-	var rss *EthdevParamsRss //*C.struct_link_params_rss
+	var portInfo lled.DevInfo
+	var portID lled.Port
+	var rss *EthdevParamsRss // *C.struct_link_params_rss
 	var mempool *Pktmbuf
 	var status C.int
 	var res error
 
 	// TODO add all params to check!
 	// Check input params
-	if (name == "") || (params == nil) || (params.rx.n_queues == 0) ||
-		(params.rx.queue_size == 0) || (params.tx.n_queues == 0) || (params.tx.queue_size == 0) {
+	if (name == "") || (params == nil) || (params.rx.nQueues == 0) ||
+		(params.rx.queueSize == 0) || (params.tx.nQueues == 0) || (params.tx.queueSize == 0) {
 		return nil
 	}
 
@@ -98,19 +98,19 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 
 	// get port id
 	if params.devName != "" {
-		port_id, res = lled.GetPortByName(params.devName)
+		portID, res = lled.GetPortByName(params.devName)
 		if res != nil {
 			return res
 		}
 	} else {
-		port_id = lled.Port(params.portId)
-		if !port_id.IsValid() {
+		portID = lled.Port(params.portID)
+		if !portID.IsValid() {
 			return errors.New("link init: no valid port id")
 		}
 	}
 
 	// get device information
-	res = port_id.InfoGet(&port_info)
+	res = portID.InfoGet(&portInfo)
 	if res != nil {
 		return res
 	}
@@ -118,17 +118,17 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 	// check requested receive RSS parameters for this device
 	rss = params.rx.rss
 	if rss != nil {
-		if port_info.RetaSize() == 0 || port_info.RetaSize() > C.RTE_ETH_RSS_RETA_SIZE_512 {
+		if portInfo.RetaSize() == 0 || portInfo.RetaSize() > C.RTE_ETH_RSS_RETA_SIZE_512 {
 			return errors.New("link init: ethdev redirection table size is 0 or too large (>512)")
 		}
 
-		if rss.n_queues == 0 || rss.n_queues >= LINK_RXQ_RSS_MAX {
+		if rss.nQueues == 0 || rss.nQueues >= LinkRxqRssMax {
 			return errors.New("link init: requested # queues for RSS is 0 or too large (>16)")
 		}
 
-		maxRxQueues := (uint32)(port_info.MaxRxQueues())
-		for i := 0; uint32(i) < rss.n_queues; i++ {
-			if rss.queue_id[i] >= maxRxQueues {
+		maxRxQueues := (uint32)(portInfo.MaxRxQueues())
+		for i := 0; uint32(i) < rss.nQueues; i++ {
+			if rss.queueID[i] >= maxRxQueues {
 				return errors.New("link init: requested queue id > ethdev maximum # of Rx queues")
 			}
 		}
@@ -149,11 +149,11 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 	if rss != nil {
 		rxMqMode = C.RTE_ETH_MQ_RX_RSS
 		optRss = lled.OptRss(lled.RssConf{
-			Hf: (C.RTE_ETH_RSS_IP | C.RTE_ETH_RSS_TCP | C.RTE_ETH_RSS_UDP) & port_info.FlowTypeRssOffloads(),
+			Hf: (C.RTE_ETH_RSS_IP | C.RTE_ETH_RSS_TCP | C.RTE_ETH_RSS_UDP) & portInfo.FlowTypeRssOffloads(),
 		})
 	}
 
-	res = port_id.DevConfigure(params.rx.n_queues, params.tx.n_queues,
+	res = portID.DevConfigure(params.rx.nQueues, params.tx.nQueues,
 		lled.OptLinkSpeeds(0),
 		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: mtu, SplitHdrSize: 0}),
 		lled.OptTxMode(lled.TxMode{MqMode: C.RTE_ETH_MQ_TX_NONE}),
@@ -166,21 +166,21 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 
 	// if requested set deviceport to promiscuous mode
 	if params.promiscuous {
-		res = port_id.PromiscEnable()
+		res = portID.PromiscEnable()
 		if res != nil {
 			return res
 		}
 	}
 
-	cpu_id := port_id.SocketID()
-	if cpu_id == C.SOCKET_ID_ANY {
-		cpu_id = 0
+	cpuID := portID.SocketID()
+	if cpuID == C.SOCKET_ID_ANY {
+		cpuID = 0
 	}
 
 	// Port RX queues setup
-	for i := 0; uint16(i) < params.rx.n_queues; i++ {
+	for i := 0; uint16(i) < params.rx.nQueues; i++ {
 		status = C.rte_eth_rx_queue_setup(
-			(C.ushort)(port_id), (C.ushort)(i), (C.ushort)(params.rx.queue_size), (C.uint)(cpu_id), nil, mempool.m,
+			(C.ushort)(portID), (C.ushort)(i), (C.ushort)(params.rx.queueSize), (C.uint)(cpuID), nil, mempool.m,
 		)
 		if status < 0 {
 			return err(status)
@@ -188,9 +188,9 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 	}
 
 	// Port TX queues setup
-	for i := 0; uint16(i) < params.tx.n_queues; i++ {
+	for i := 0; uint16(i) < params.tx.nQueues; i++ {
 		status = C.rte_eth_tx_queue_setup(
-			(C.ushort)(port_id), (C.ushort)(i), (C.ushort)(params.tx.queue_size), (C.uint)(cpu_id), nil,
+			(C.ushort)(portID), (C.ushort)(i), (C.ushort)(params.tx.queueSize), (C.uint)(cpuID), nil,
 		)
 		if status < 0 {
 			return err(status)
@@ -198,36 +198,36 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 	}
 
 	// Port start
-	res = port_id.Start()
+	res = portID.Start()
 	if res != nil {
 		return res
 	}
 
 	// configure device rss (receive side scaling) settings
 	if rss != nil {
-		status = (C.int)(rss_setup(port_id, port_info.RetaSize(), rss))
+		status = (C.int)(rssSetup(portID, portInfo.RetaSize(), rss))
 		if status != 0 {
-			port_id.Stop()
+			portID.Stop()
 			return err(status)
 		}
 	}
 
 	// Port link up
-	res = port_id.SetLinkUp()
-	if res != nil { //&& (res != -C.ENOTSUP) {
-		port_id.Stop()
+	res = portID.SetLinkUp()
+	if res != nil { // && (res != -C.ENOTSUP) {
+		portID.Stop()
 		return res
 	}
 
 	// Node fill in
 	ethdev.name = name
-	ethdev.portId = port_id
-	ethdev.dev_name, res = port_id.Name()
+	ethdev.portID = portID
+	ethdev.devName, res = portID.Name()
 	if res != nil {
 		return res
 	}
-	ethdev.nRxQ = params.rx.n_queues
-	ethdev.nTxQ = params.tx.n_queues
+	ethdev.nRxQ = params.rx.nQueues
+	ethdev.nTxQ = params.tx.nQueues
 	ethdev.clean = clean
 
 	return nil
@@ -236,7 +236,7 @@ func (ethdev *Ethdev) Init(name string, params *EthdevParams, clean func()) erro
 // Free deletes the current Ethdev record and calls the clean callback function given at init
 func (ethdev *Ethdev) Free() {
 	// Release all resources for this port
-	ethdev.portId.Stop()
+	ethdev.portID.Stop()
 
 	// call given clean callback function if given during init
 	if ethdev.clean != nil {
@@ -245,33 +245,32 @@ func (ethdev *Ethdev) Free() {
 }
 
 // TODO Rewrite this function to portId.RssRetaUpdate!
-func rss_setup(portId lled.Port, reta_size uint16, rss *EthdevParamsRss) int {
-	var reta_conf [RETA_CONF_SIZE]C.struct_rte_eth_rss_reta_entry64
+func rssSetup(portID lled.Port, retaSize uint16, rss *EthdevParamsRss) int {
+	var retaConf [RetaConfSize]C.struct_rte_eth_rss_reta_entry64
 	var i uint16
 	var status int
 
 	// RETA setting
-	for i = 0; i < reta_size; i++ {
-		reta_conf[i/C.RTE_ETH_RETA_GROUP_SIZE].mask = C.UINT64_MAX
+	for i = 0; i < retaSize; i++ {
+		retaConf[i/C.RTE_ETH_RETA_GROUP_SIZE].mask = C.UINT64_MAX
 	}
 
-	for i = 0; i < reta_size; i++ {
-		reta_id := (C.uint32_t)(i / C.RTE_ETH_RETA_GROUP_SIZE)
-		reta_pos := (C.uint32_t)(i % C.RTE_ETH_RETA_GROUP_SIZE)
-		rss_qs_pos := (C.uint32_t)(i % (uint16)(rss.n_queues))
+	for i = 0; i < retaSize; i++ {
+		retaID := (C.uint32_t)(i / C.RTE_ETH_RETA_GROUP_SIZE)
+		retaPos := (C.uint32_t)(i % C.RTE_ETH_RETA_GROUP_SIZE)
+		rssQsPos := (C.uint32_t)(i % (uint16)(rss.nQueues))
 
-		reta_conf[reta_id].reta[reta_pos] = (C.uint16_t)(rss.queue_id[rss_qs_pos]) //uint16 type?
+		retaConf[retaID].reta[retaPos] = (C.uint16_t)(rss.queueID[rssQsPos]) //  uint16 type?
 	}
 
-	//portId.RssRetaUpdate(([]ethdev.RssRetaEntry64)(reta_conf), reta_size)
+	// portId.RssRetaUpdate(([]ethdev.RssRetaEntry64)(reta_conf), reta_size)
 	// RETA update
-	status = (int)(C.rte_eth_dev_rss_reta_update((C.ushort)(portId), (*C.struct_rte_eth_rss_reta_entry64)(&reta_conf[0]),
-		(C.ushort)(reta_size)))
+	status = (int)(C.rte_eth_dev_rss_reta_update((C.ushort)(portID), &retaConf[0], (C.ushort)(retaSize)))
 	return status
 }
 
 func (ethdev *Ethdev) IsUp() (bool, error) {
-	linkParams, result := ethdev.portId.EthLinkGet()
+	linkParams, result := ethdev.portID.EthLinkGet()
 	if result != nil {
 		return false, result
 	}

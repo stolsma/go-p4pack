@@ -22,15 +22,13 @@ const (
 func useOrDefaultInt(value int, defaultValue int) int {
 	if value == 0 {
 		return defaultValue
-	} else {
-		return value
 	}
+	return value
 }
 
 func useOrDefaultString(value string, defaultValue string) string {
 	if value == "" {
 		return defaultValue
-	} else {
-		return value
 	}
+	return value
 }
