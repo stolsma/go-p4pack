@@ -1,5 +1,5 @@
 ---
-name: Go
+name: Go-Build-Lint-Test
 on:
   push:
     branches: [main]
@@ -7,20 +7,39 @@ on:
     branches: [main]
 jobs:
   golangci:
-    name: Lint-Build-Test
+    name: Build-Lint-Test
     runs-on: ubuntu-latest
+    env:
+      DPDK_VERSION: 22.07
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Generate cache keys
+        id: get_ref_keys
+        run: |
+          echo -n '::set-output name=ccache::'
+          echo 'ccache-dpdk-${{ env.DPDK_VERSION }}'
+      - name: Retrieve ccache cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.ccache
+          key: ${{ steps.get_ref_keys.outputs.ccache }}-${{ github.run_id }}
+          restore-keys: 
+            ${{ steps.get_ref_keys.outputs.ccache }}-
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: 1.18.x
+      - name: Set DPDK location
+        run: |
+          echo "DPDK_HOME=$GITHUB_WORKSPACE/dpdk" >> "$GITHUB_ENV"
       - name: build-dpdk
         run: |
           cd build/dpdk
-          sudo ./install.sh
+          ./install.sh
           cd ~
+      - name: print-ccache-stats
+        run: ccache -s
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:

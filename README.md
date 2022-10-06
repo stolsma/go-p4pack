@@ -6,27 +6,27 @@
  */
 - -->
 
+# Go-P4Pack: Generic packages & examples for Go & P4 based networking apps
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Coverage Status](https://coveralls.io/repos/github/stolsma/go-p4pack/badge.svg?branch=main)](https://coveralls.io/github/stolsma/go-p4pack?branch=main)
 
-# DPDK Pipeline tests with P4 Programs
-
-This is a repository with a p4Runtime/gNOI API capable, Golang + DPDK SWX based, P4 programmable virtual soft switch.
+Always wanted to write performant P4 based networking application in Go but don't know where to start? Then this is the place to get to. This repository contains several ready to use packages written in Go along with several example applications using those packages.
+One of the larger (currently not ready) example applications is a p4Runtime/gNMI/gNOI API capable, Golang + DPDK SWX based, P4 programmable virtual soft switch. But also a gNMI CLI application and a bare bones DPDK SWX based dataplane switch is included. Read the documentation below and start experimenting!
 
 # Installation, build & run docker container
 
 ## Download repository
 
 ``` bash
-git clone https://github.com/stolsma/p4vswitch.git
-cd p4vswitch
-git submodule update --init --recursive
+git clone https://github.com/stolsma/go-p4pack.git
+cd go-p4pack
 ```
 
-Build dpdk driver image:
+Build go-p4pack docker image with all the example applications:
 
 ``` bash
-./build/dpdk-pipeline/build.sh 
+./build/go-p4pack/build.sh 
 ```
 
 ## Setup hugepages
@@ -37,10 +37,12 @@ sudo mount -t hugetlbfs nodev /mnt/huge
 sudo sysctl -w vm.nr_hugepages=256
 ```
 
-Build and run dpdk driver:
+## start docker container
+
+Run go-p4pack docker image:
 
 ``` bash
-docker run --rm -it --cap-add ALL --privileged stolsma/dpdk-infra
+./go-p4pack run
 ```
 
 ## Startup the DPDK SWX Pipeline driver
@@ -55,6 +57,8 @@ sudo ./dpdk-pipeline -c 0x3 -- -s ./examples/ipdk-simple_l3/simple_l3.cli
 ```
 
 ## Connect to the driver ssh terminal
+
+from a second bash terminal
 
 ``` bash
 ssh -p 2222 user@0.0.0.0
@@ -109,7 +113,7 @@ sudo ip netns del host1
 
 TODO Remove or use in other parts of this README!
 
-```
+``` bash
 pipeline PIPELINE0 stats
 Input ports:
         Port 0: packets 0 bytes 0 empty 0

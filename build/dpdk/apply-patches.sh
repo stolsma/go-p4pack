@@ -21,9 +21,11 @@ apply_patch()
 	local PATCH_FILES=(007-Fix-pipeline-structs-initialization.patch)
 
 	CURRENT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+	
+	DPDK_HOME=$1
 	readonly DEFAULT_DPDK_HOME="${CURRENT_PATH}"/dpdk
 	DPDK_SRC_PATH=${DPDK_HOME:-$DEFAULT_DPDK_HOME}
-	DPDK_PATCH_PATH="${CURRENT_PATH}"patches
+	DPDK_PATCH_PATH="${CURRENT_PATH}"/patches
 	DPDK_SRC_GIT_FILE="${DPDK_SRC_PATH}"/.git
 
 	echo *******************************************************************************
@@ -73,4 +75,4 @@ apply_patch()
 	echo *******************************************************************************
 }
 
-apply_patch
+apply_patch "$@"

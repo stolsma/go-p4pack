@@ -1,19 +1,19 @@
 ---
-name: 'build-dpdkinfra'
+name: 'build-go-p4pack'
 
 on:
   push:
     branches: [main]
     paths:
-      - 'build/dpdkinfra/**'
+      - 'build/go-p4pack/**'
   pull_request:
     branches: [main]
     paths:
-      - 'build/dpdkinfra/**'
+      - 'build/go-p4pack/**'
 
 concurrency:
   # if workflow for PR or push is already running stop it, and start new one
-  group: build-dpdkinfra-${{ github.ref }}
+  group: build-go-p4pack-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,12 +32,12 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: DPDKInfra image build and push
+      - name: Go-P4Pack image build and push
         if: github.event_name != 'pull_request'
         run: |
-          build/dpdkinfra/build.sh --push
+          build/go-p4pack/build.sh --push
 
-      - name: DPDKInfra image build (TODO add export later)
+      - name: Go-P4Pack image build (TODO add export later)
         if: github.event_name == 'pull_request'
         run: |
-          build/dpdkinfra/build.sh
+          build/go-p4pack/build.sh

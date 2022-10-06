@@ -14,7 +14,7 @@ ENV PATH "$PATH:/usr/local/go/bin"
 
 # Build the go app #as dpdkinfra-build
 FROM go-build 
-ARG DPDKINFRA_HOME=/dpdkinfra
+ARG GOP4PACK_HOME=/go-p4pack
 
 ENV GOPATH /go
 ENV CGO_CFLAGS_ALLOW .*
@@ -22,15 +22,16 @@ ENV CGO_LDFLAGS_ALLOW .*
 ENV PKG_CONFIG_PATH /usr/local/share/pkgconfig:$PKG_CONFIG_PATH
 
 # hadolint ignore=DL3003
-RUN mkdir --parents $DPDKINFRA_HOME \
+RUN mkdir --parents $GOP4PACK_HOME/build \
+  && cd "$GOP4PACK_HOME/build" \
   && git clone https://github.com/stolsma/go-p4pack.git \
   && cd go-p4pack/ \
   && go mod tidy \
   && go build -v ./cmd/dpdkinfra/... \
-  && mv ./dpdkinfra $DPDKINFRA_HOME \
-  && mv ./examples $DPDKINFRA_HOME \
-  && mv ./README.md $DPDKINFRA_HOME \
-  && cd .. \
-  && rm -Rf go-p4pack
+  && mv ./dpdkinfra $GOP4PACK_HOME \
+  && mv ./examples $GOP4PACK_HOME \
+  && mv ./README.md $GOP4PACK_HOME \
+  && cd $GOP4PACK_HOME \
+  && rm -Rf "$GOP4PACK_HOME/build"
 
-WORKDIR ${DPDKINFRA_HOME}
+WORKDIR ${GOP4PACK_HOME}
