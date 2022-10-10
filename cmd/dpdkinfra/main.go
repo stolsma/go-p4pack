@@ -3,19 +3,22 @@
 
 package main
 
-// CGO_LDFLAGS=`pkg-config --libs libdpdk` CGO_CFLAGS=`pkg-config --cflags libdpdk`
-
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/signals"
 )
 
 func main() {
-	dpdkArgs := []string{"dummy", "-c", "3", "-n", "4"}
-	//	dpdkArgs := []string{"dummy", "-c", "3", "--log-level", ".*,8"}
+	// get application arguments
+	cmd := CreateCmd()
+	cmd.Execute()
+
+	dpdkArgs, _ := cmd.Flags().GetString("dpdkargs")
+	spec, _ := cmd.Flags().GetString("spec")
 
 	// the context for the app with cancel function
 	appCtx, cancelCtx := context.WithCancel(context.Background())
@@ -25,13 +28,13 @@ func main() {
 	stopCh := signals.RegisterSignalHandlers()
 
 	// os.Args
-	dpdki, err := dpdkinfra.Init(dpdkArgs)
+	dpdki, err := dpdkinfra.Init(strings.Split(dpdkArgs, " "))
 	if err != nil {
 		log.Fatalln("DPDKInfraInit failed:", err)
 	}
 
 	// create an example pipeline through the Go API
-	examplePipelineConfig(dpdki)
+	examplePipelineConfig(dpdki, spec)
 
 	// start ssh cli server
 	startSSH(appCtx, dpdki)
@@ -52,7 +55,7 @@ func main() {
 }
 
 // Create an example pipeline through the Go API
-func examplePipelineConfig(dpdki *dpdkinfra.DpdkInfra) {
+func examplePipelineConfig(dpdki *dpdkinfra.DpdkInfra, spec string) {
 	taps := [...]string{"sw0", "sw1", "sw2", "sw3"}
 
 	// Create mempool
@@ -102,7 +105,7 @@ func examplePipelineConfig(dpdki *dpdkinfra.DpdkInfra) {
 
 	// Build the pipeline program
 	// pipeline PIPELINE0 build ./examples/ipdk-simple_l3/simple_l3.spec
-	err = dpdki.PipelineBuild("PIPELINE0", "../../examples/ipdk-simple_l3/simple_l3.spec")
+	err = dpdki.PipelineBuild("PIPELINE0", spec)
 	if err != nil {
 		log.Fatalln("Pipelinebuild err:", err)
 	}

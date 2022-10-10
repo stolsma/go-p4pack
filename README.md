@@ -10,6 +10,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 [![Coverage Status](https://coveralls.io/repos/github/stolsma/go-p4pack/badge.svg?branch=main)](https://coveralls.io/github/stolsma/go-p4pack?branch=main)
+[![Go-P4Pack Lint/Build/Test](https://github.com/stolsma/go-p4pack/actions/workflows/go-build-lint-test.yml/badge.svg)](https://github.com/stolsma/go-p4pack/actions/workflows/go-build-lint-test.yml)
 
 Always wanted to write performant P4 based networking application in Go but don't know where to start? Then this is the place to get to. This repository contains several ready to use packages written in Go along with several example applications using those packages.
 One of the larger (currently not ready) example applications is a p4Runtime/gNMI/gNOI API capable, Golang + DPDK SWX based, P4 programmable virtual soft switch. But also a gNMI CLI application and a bare bones DPDK SWX based dataplane switch is included. Read the documentation below and start experimenting!
