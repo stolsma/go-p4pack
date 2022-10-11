@@ -65,9 +65,19 @@ from a second bash terminal
 ssh -p 2222 user@0.0.0.0
 ```
 
+``` bash
+docker exec -it go-p4pack /bin/bash
+```
+
 ## Test the Go DPDK SWX Pipeline driver example
 
 Setup network namespaced test environment with two hosts:
+
+``` bash
+./examples/default/createenv.sh
+```
+
+This script will execute: 
 
 ``` bash
 sudo ip netns add host0

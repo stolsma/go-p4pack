@@ -36,7 +36,10 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends \
   iproute2 \
   wget \
   xz-utils \
-  git
+  git \
+  net-tools \
+  iputils-ping \
+  sudo
 sudo pip3 install \
   meson \
   ninja
