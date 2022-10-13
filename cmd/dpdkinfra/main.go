@@ -8,42 +8,66 @@ import (
 	"log"
 	"strings"
 
+	"github.com/stolsma/go-p4pack/pkg/config"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/flowtest"
 	"github.com/stolsma/go-p4pack/pkg/signals"
 )
 
 func main() {
+	// the context for the app with cancel function
+	appCtx, cancelAppCtx := context.WithCancel(context.Background())
+
 	// get application arguments
 	cmd := CreateCmd()
 	cmd.Execute()
-
 	dpdkArgs, _ := cmd.Flags().GetString("dpdkargs")
-	spec, _ := cmd.Flags().GetString("spec")
+	configFile, _ := cmd.Flags().GetString("config")
 
-	// the context for the app with cancel function
-	appCtx, cancelCtx := context.WithCancel(context.Background())
-
-	// initialize wait for signals to react on during packet processing
-	log.Println("p4vswitch pipeline running!")
-	stopCh := signals.RegisterSignalHandlers()
+	// get configuration
+	config, err := config.CreateAndLoad(configFile)
+	if err != nil {
+		log.Fatalln("Configuration load failed: ", err)
+	}
 
 	// os.Args
-	dpdki, err := dpdkinfra.Init(strings.Split(dpdkArgs, " "))
+	dpdki, err := dpdkinfra.Create(strings.Split(dpdkArgs, " "))
 	if err != nil {
 		log.Fatalln("DPDKInfraInit failed:", err)
 	}
 
-	// create an example pipeline through the Go API
-	examplePipelineConfig(dpdki, spec)
+	// create interfaces through the Go API
+	for _, i := range config.Interfaces {
+		dpdki.InterfaceWithConfig(i)
+	}
+
+	// create and start pipelines through the Go API
+	for _, p := range config.Pipelines {
+		dpdki.PipelineWithConfig(p)
+	}
+
+	// Define and start flowtests if requested
+	tests, err := flowtest.Init(appCtx, config.FlowTest)
+	if err != nil {
+		log.Fatalln("Tests initialization failed:", err)
+	}
+	err = tests.StartAll()
+	if err != nil {
+		log.Fatalln("Starting predefined flowtests failed:", err)
+	}
 
 	// start ssh cli server
 	startSSH(appCtx, dpdki)
 
+	// initialize wait for signals to react on during packet processing
+	log.Println("p4vswitch pipeline and SSH CLI server running!")
+	stopCh := signals.RegisterSignalHandlers()
+
 	// wait for stop signal CTRL-C or forced termination
 	<-stopCh
 
-	// Cancel the App context to let all running sessions close in a neat way
-	cancelCtx()
+	// Cancel the App context to let all running SSH sessions and Flow tests close in a neat way
+	cancelAppCtx()
 	println()
 	log.Println("p4vswitch pipeline requested to stop!")
 
@@ -52,78 +76,4 @@ func main() {
 
 	// All is handled...
 	log.Println("p4vswitch stopped!")
-}
-
-// Create an example pipeline through the Go API
-func examplePipelineConfig(dpdki *dpdkinfra.DpdkInfra, spec string) {
-	taps := [...]string{"sw0", "sw1", "sw2", "sw3"}
-
-	// Create mempool
-	// mempool MEMPOOL0 buffer 2304 pool 32K cache 256 cpu 0
-	err := dpdki.MempoolCreate("MEMPOOL0", 2304, 32*1024, 256, 0)
-	if err != nil {
-		log.Fatalln("Pktmbuf Mempool create err:", err)
-	}
-	log.Println("Pktmbuf Mempool ready!")
-
-	// Create TAP ports
-	for _, t := range taps {
-		err = dpdki.TapCreate(t)
-		if err != nil {
-			log.Fatalf("TAP %s create err: %d", t, err)
-		}
-		log.Printf("TAP %s created!", t)
-	}
-
-	// Create pipeline
-	// pipeline PIPELINE0 create 0
-	err = dpdki.PipelineCreate("PIPELINE0", 0)
-	if err != nil {
-		log.Fatalln("PIPELINE0 create err:", err)
-	}
-	log.Println("PIPELINE0 created!")
-
-	// Add input ports to pipeline
-	// pipeline PIPELINE0 port in <portindex> tap <tapname> mempool MEMPOOL0 mtu 1500 bsz 1
-	for i, t := range taps {
-		err = dpdki.PipelineAddInputPortTap("PIPELINE0", i, t, "MEMPOOL0", 1500, 1)
-		if err != nil {
-			log.Fatalf("AddInPortTap %s err: %d", t, err)
-		}
-		log.Printf("AddInPortTap %s ready!", t)
-	}
-
-	// Add output ports to pipeline
-	// pipeline PIPELINE0 port out 0 tap sw0 bsz 1
-	for i, t := range taps {
-		err = dpdki.PipelineAddOutputPortTap("PIPELINE0", i, t, 1)
-		if err != nil {
-			log.Fatalf("AddOutPortTap %s err: %d", t, err)
-		}
-		log.Printf("AddOutPortTap %s ready!", t)
-	}
-
-	// Build the pipeline program
-	// pipeline PIPELINE0 build ./examples/ipdk-simple_l3/simple_l3.spec
-	err = dpdki.PipelineBuild("PIPELINE0", spec)
-	if err != nil {
-		log.Fatalln("Pipelinebuild err:", err)
-	}
-	log.Println("Pipeline Build!")
-
-	// Commit program to pipeline
-	// pipeline PIPELINE0 commit
-	err = dpdki.PipelineCommit("PIPELINE0")
-	if err != nil {
-		log.Fatalln("Pipelinecommit err:", err)
-	}
-	log.Println("Pipeline Commited!")
-
-	// And run pipeline
-	// thread 1 pipeline PIPELINE0 enable
-	err = dpdki.PipelineEnable("PIPELINE0", 1)
-	if err != nil {
-		log.Fatalln("PipelineEnable err:", err)
-	}
-	log.Println("Pipeline Enabled!")
 }

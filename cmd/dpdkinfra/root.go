@@ -13,8 +13,8 @@ func CreateCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 		},
 	}
-	var spec, dpdkargs string
-	root.Flags().StringVarP(&spec, "spec", "s", "./examples/default/default.spec", "The switch .spec file to use.")
+	var config, dpdkargs string
+	root.Flags().StringVarP(&config, "config", "c", "./examples/default/config.json", "The config file to use.")
 	// "dummy -c 3 -n 4"
 	// "dummy -c 3 --log-level .*,8"
 	root.Flags().StringVarP(&dpdkargs, "dpdkargs", "d", "dummy -c 3 -n 4", "The DPDK arguments to use.")

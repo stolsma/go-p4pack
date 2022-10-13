@@ -13,12 +13,11 @@ jobs:
       DPDK_VERSION: 22.07
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: Generate cache keys
         id: get_ref_keys
         run: |
-          echo -n '::set-output name=ccache::'
-          echo 'ccache-dpdk-${{ env.DPDK_VERSION }}'
+          echo "ccache=ccache-dpdk-${{ env.DPDK_VERSION }}" >> "$GITHUB_OUTPUT"
       - name: Retrieve ccache cache
         uses: actions/cache@v3
         with:

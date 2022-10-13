@@ -23,6 +23,30 @@ func initPipeline(parent *cobra.Command) {
 		},
 	}
 
+	info := &cobra.Command{
+		Use:     "info [pipeline]",
+		Short:   "info",
+		Aliases: []string{"i"},
+		Args:    cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dpdki := getDpdki(cmd)
+			plName := ""
+
+			// check specific pipeline or all
+			if len(args) == 1 {
+				plName = args[0]
+			}
+
+			pi, err := dpdki.PipelineInfo(plName)
+			if err != nil {
+				cmd.PrintErrf("Pipeline Info err: %v\n", err)
+				return
+			}
+			cmd.Printf("%s", pi)
+		},
+	}
+	pipeline.AddCommand(info)
+
 	var re, li, si bool
 	stats := &cobra.Command{
 		Use:     "stats [pipeline]",

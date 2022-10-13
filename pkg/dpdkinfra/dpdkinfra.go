@@ -21,6 +21,15 @@ type DpdkInfra struct {
 	tapStore      TapStore
 }
 
+func Create(dpdkArgs []string) (*DpdkInfra, error) {
+	var di DpdkInfra
+	err := di.Init(dpdkArgs)
+	if err != nil {
+		return nil, err
+	}
+	return &di, nil
+}
+
 func (di *DpdkInfra) Init(dpdkArgs []string) error {
 	di.args = dpdkArgs
 	numArgs, status := dpdkswx.EalInit(dpdkArgs)
@@ -178,6 +187,21 @@ func (di *DpdkInfra) PipelineEnable(name string, threadid uint32) error {
 	return pipeline.Enable(threadid)
 }
 
+func (di *DpdkInfra) TableEntryAdd(pipeName string, tableName string, line string) error {
+	pipeline := di.pipelineStore.Find(pipeName)
+	if pipeline == nil {
+		return errors.New("pipeline doesn't exists")
+	}
+
+	tableEntry := pipeline.TableEntryRead(tableName, line)
+	if tableEntry == nil {
+		return nil
+	}
+
+	err := pipeline.TableEntryAdd(tableName, tableEntry)
+	return err
+}
+
 func (di *DpdkInfra) PrintThreadStatus() {
 	var i uint
 	for i = 0; i < 16; i++ {
@@ -187,6 +211,27 @@ func (di *DpdkInfra) PrintThreadStatus() {
 			log.Printf("Thread %d not running!", i)
 		}
 	}
+}
+
+// get pipeline info. If name is filled then that specific pipeline info is retrieved else the info
+// of all pipelines is retrieved
+func (di *DpdkInfra) PipelineInfo(name string) (string, error) {
+	if name != "" {
+		pipeline := di.pipelineStore.Find(name)
+		if pipeline == nil {
+			return "", errors.New("pipeline doesn't exists")
+		}
+		return pipeline.Info(), nil
+	}
+
+	result := ""
+	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
+		result += fmt.Sprintf("%s: \n", pipeline.Name())
+		result += pipeline.Info()
+		return nil
+	})
+
+	return result, err
 }
 
 // get pipeline statistics. If name is filled then that specific pipeline statistics is retrieved else the statistics
@@ -208,13 +253,4 @@ func (di *DpdkInfra) PipelineStats(name string) (string, error) {
 	})
 
 	return result, err
-}
-
-func Init(dpdkArgs []string) (*DpdkInfra, error) {
-	var di DpdkInfra
-	err := di.Init(dpdkArgs)
-	if err != nil {
-		return nil, err
-	}
-	return &di, nil
 }

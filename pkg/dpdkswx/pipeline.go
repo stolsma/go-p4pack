@@ -219,6 +219,64 @@ func (pl *Pipeline) Disable() error {
 	return res
 }
 
+type TableEntry C.struct_rte_swx_table_entry
+
+func (te *TableEntry) Free() {
+	if te == nil {
+		return
+	}
+
+	C.free(unsafe.Pointer(te.key))
+	C.free(unsafe.Pointer(te.key_mask))
+	C.free(unsafe.Pointer(te.action_data))
+	C.free(unsafe.Pointer(te))
+}
+
+func (pl *Pipeline) TableEntryRead(tableName string, line string) *TableEntry {
+	var isBlankOrComment C.int
+
+	cTableName := C.CString(tableName)
+	defer C.free(unsafe.Pointer(cTableName))
+	cLine := C.CString(line)
+	defer C.free(unsafe.Pointer(cLine))
+
+	entry := (*TableEntry)(C.rte_swx_ctl_pipeline_table_entry_read(pl.ctl, cTableName, cLine, &isBlankOrComment))
+
+	if isBlankOrComment != 0 {
+		return nil
+	}
+
+	return entry
+}
+
+func (pl *Pipeline) TableEntryAdd(tableName string, entry *TableEntry) error {
+	cTableName := C.CString(tableName)
+	defer C.free(unsafe.Pointer(cTableName))
+
+	status := C.rte_swx_ctl_pipeline_table_entry_add(pl.ctl, cTableName, (*C.struct_rte_swx_table_entry)(entry))
+	entry.Free()
+
+	if status != 0 {
+		return fmt.Errorf("entry add error: %d", status)
+	}
+
+	return nil
+}
+
+func (pl *Pipeline) TableEntryDelete(tableName string, entry *TableEntry) error {
+	cTableName := C.CString(tableName)
+	defer C.free(unsafe.Pointer(cTableName))
+
+	status := C.rte_swx_ctl_pipeline_table_entry_delete(pl.ctl, cTableName, (*C.struct_rte_swx_table_entry)(entry))
+	entry.Free()
+
+	if status != 0 {
+		return fmt.Errorf("entry delete error: %d", status)
+	}
+
+	return nil
+}
+
 //
 // Statistic functions
 //
@@ -337,6 +395,30 @@ func (pl *Pipeline) PortIsValid() bool {
 	return true
 }
 
+const infoTemplate = `	ports in           : %d
+	ports out          : %d
+	mirroring slots    : %d
+	mirroring sessions : %d
+	actions            : %d
+	tables             : %d
+	selectors          : %d
+	learners           : %d
+	register arrays    : %d
+	meta arrays        : %d
+`
+
+func (pl *Pipeline) Info() string {
+	pi, err := pl.pipelineInfo()
+	if err != nil {
+		return ""
+	}
+
+	result := fmt.Sprintf(infoTemplate, pi.n_ports_in, pi.n_ports_out, pi.n_mirroring_slots, pi.n_mirroring_sessions,
+		pi.n_actions, pi.n_tables, pi.n_selectors, pi.n_learners, pi.n_regarrays, pi.n_metarrays)
+
+	return result
+}
+
 func (pl *Pipeline) Stats() string {
 	var result string
 
@@ -357,17 +439,16 @@ func (pl *Pipeline) Stats() string {
 
 	result += "\nOutput ports:\n"
 	for i := 0; i < (int)(pipeInfo.n_ports_out); i++ {
-		portOutStats, err := pl.PortInStats(i)
+		portOutStats, err := pl.PortOutStats(i)
 		if err != nil {
 			return ""
 		}
 
 		if i != (int)(pipeInfo.n_ports_out)-1 {
-			result += fmt.Sprintf("\tPort %d\t Packets: %d\tBytes: %d\tEmpty: %d\n",
-				i, portOutStats.n_pkts, portOutStats.n_bytes, portOutStats.n_empty)
+			result += fmt.Sprintf("\tPort %d\t Packets: %d\tBytes: %d\tClone: %d\tClone Error: %d\n",
+				i, portOutStats.n_pkts, portOutStats.n_bytes, portOutStats.n_pkts_clone, portOutStats.n_pkts_clone_err)
 		} else {
-			result += fmt.Sprintf("\tDROP\t Packets: %d\tBytes: %d\tEmpty: %d\n",
-				portOutStats.n_pkts, portOutStats.n_bytes, portOutStats.n_empty)
+			result += fmt.Sprintf("\tDROP\t Packets: %d\tBytes: %d\n", portOutStats.n_pkts, portOutStats.n_bytes)
 		}
 	}
 
@@ -497,17 +578,6 @@ func (pl *Pipeline) Stats() string {
 }
 
 /*
-
-void table_entry_free(struct rte_swx_table_entry *entry) {
-	if (!entry)
-		return;
-
-	free(entry->key);
-	free(entry->key_mask);
-	free(entry->action_data);
-	free(entry);
-}
-
 uint64_t get_action_id(struct pipeline *pipe, const char *action_name) {
 	uint64_t i;
 	int ret;
