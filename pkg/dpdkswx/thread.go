@@ -24,7 +24,7 @@ func threadPipelineEnable(threadid uint32, pipeline *Pipeline) error {
 }
 
 func threadPipelineDisable(pipeline *Pipeline) error {
-	res := C.thread_pipeline_disable(C.uint32_t(pipeline.ThreadID()), pipeline.p)
+	res := C.thread_pipeline_disable(C.uint32_t(pipeline.GetThreadID()), pipeline.p)
 
 	return err(res)
 }

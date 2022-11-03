@@ -118,8 +118,8 @@ func (di *DpdkInfra) EthdevCreate(name string, params *dpdkswx.EthdevParams) err
 	return err
 }
 
-func (di *DpdkInfra) PipelineCreate(name string, numaNode int) error {
-	_, err := di.pipelineStore.Create(name, numaNode)
+func (di *DpdkInfra) PipelineCreate(plName string, numaNode int) error {
+	_, err := di.pipelineStore.Create(plName, numaNode)
 	return err
 }
 
@@ -160,35 +160,35 @@ func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName s
 	return pipeline.AddOutputPortTap(portID, tap, bsz)
 }
 
-func (di *DpdkInfra) PipelineBuild(name string, specfile string) error {
-	pipeline := di.pipelineStore.Find(name)
+func (di *DpdkInfra) PipelineBuild(plName string, specfile string) error {
+	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
 	}
 
-	return pipeline.Build(specfile)
+	return pipeline.BuildFromSpec(specfile)
 }
 
-func (di *DpdkInfra) PipelineCommit(name string) error {
-	pipeline := di.pipelineStore.Find(name)
+func (di *DpdkInfra) PipelineCommit(plName string) error {
+	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
 	}
 
-	return pipeline.Commit()
+	return pipeline.Commit(dpdkswx.CommitAbortOnFail)
 }
 
-func (di *DpdkInfra) PipelineEnable(name string, threadid uint32) error {
-	pipeline := di.pipelineStore.Find(name)
+func (di *DpdkInfra) PipelineEnable(plName string, threadID uint32) error {
+	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
 	}
 
-	return pipeline.Enable(threadid)
+	return pipeline.Enable(threadID)
 }
 
-func (di *DpdkInfra) TableEntryAdd(pipeName string, tableName string, line string) error {
-	pipeline := di.pipelineStore.Find(pipeName)
+func (di *DpdkInfra) TableEntryAdd(plName string, tableName string, line string) error {
+	pipeline := di.pipelineStore.Find(plName)
 	if pipeline == nil {
 		return errors.New("pipeline doesn't exists")
 	}
@@ -213,11 +213,11 @@ func (di *DpdkInfra) PrintThreadStatus() {
 	}
 }
 
-// get pipeline info. If name is filled then that specific pipeline info is retrieved else the info
+// get pipeline info. If plName is filled then that specific pipeline info is retrieved else the info
 // of all pipelines is retrieved
-func (di *DpdkInfra) PipelineInfo(name string) (string, error) {
-	if name != "" {
-		pipeline := di.pipelineStore.Find(name)
+func (di *DpdkInfra) PipelineInfo(plName string) (string, error) {
+	if plName != "" {
+		pipeline := di.pipelineStore.Find(plName)
 		if pipeline == nil {
 			return "", errors.New("pipeline doesn't exists")
 		}
@@ -226,7 +226,7 @@ func (di *DpdkInfra) PipelineInfo(name string) (string, error) {
 
 	result := ""
 	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pipeline.Name())
+		result += fmt.Sprintf("%s: \n", pipeline.GetName())
 		result += pipeline.Info()
 		return nil
 	})
@@ -234,11 +234,11 @@ func (di *DpdkInfra) PipelineInfo(name string) (string, error) {
 	return result, err
 }
 
-// get pipeline statistics. If name is filled then that specific pipeline statistics is retrieved else the statistics
+// get pipeline statistics. If plName is filled then that specific pipeline statistics is retrieved else the statistics
 // of all pipelines is retrieved
-func (di *DpdkInfra) PipelineStats(name string) (string, error) {
-	if name != "" {
-		pipeline := di.pipelineStore.Find(name)
+func (di *DpdkInfra) PipelineStats(plName string) (string, error) {
+	if plName != "" {
+		pipeline := di.pipelineStore.Find(plName)
 		if pipeline == nil {
 			return "", errors.New("pipeline doesn't exists")
 		}
@@ -247,7 +247,7 @@ func (di *DpdkInfra) PipelineStats(name string) (string, error) {
 
 	result := ""
 	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pipeline.Name())
+		result += fmt.Sprintf("%s: \n", pipeline.GetName())
 		result += pipeline.Stats()
 		return nil
 	})
