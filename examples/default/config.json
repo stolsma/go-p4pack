@@ -27,22 +27,22 @@
     "InputPorts": [{
       "IfaceName": "sw1",
       "Mempool": "MEMPOOL0",
-      "MTU": 1500,
+      "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw2",
       "Mempool": "MEMPOOL0",
-      "MTU": 1500,
+      "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw3",
       "Mempool": "MEMPOOL0",
-      "MTU": 1500,
+      "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw4",
       "Mempool": "MEMPOOL0",
-      "MTU": 1500,
+      "MTU": 1515,
       "Bsz": 1
     }],
     "OutputPorts": [{

@@ -10,15 +10,15 @@
 #include "thread.h"
 
 #ifndef THREAD_PIPELINES_MAX
-#define THREAD_PIPELINES_MAX                               256
+#define THREAD_PIPELINES_MAX 256
 #endif
 
 #ifndef THREAD_MSGQ_SIZE
-#define THREAD_MSGQ_SIZE                                   64
+#define THREAD_MSGQ_SIZE 64
 #endif
 
 #ifndef THREAD_TIMER_PERIOD_MS
-#define THREAD_TIMER_PERIOD_MS                             100
+#define THREAD_TIMER_PERIOD_MS 100
 #endif
 
 // Pipeline instruction quanta: Needs to be big enough to do some meaningful work, but not too big to avoid starving
@@ -26,13 +26,14 @@
 // 1000 instructions equates to processing 100 packets.
 //
 #ifndef PIPELINE_INSTR_QUANTA
-#define PIPELINE_INSTR_QUANTA                              1000
+#define PIPELINE_INSTR_QUANTA 1000
 #endif
 
 //
 // Control thread: data plane thread context definition
 //
-struct thread {
+struct thread
+{
 	struct rte_ring *msgq_req;
 	struct rte_ring *msgq_rsp;
 	uint32_t initialized;
@@ -44,17 +45,12 @@ static struct thread thread[RTE_MAX_LCORE];
 // Data plane threads: context definition
 //
 
-//struct pipeline_data {
-//	struct rte_swx_pipeline *p;
-//	uint64_t timer_period; // Measured in CPU cycles.
-//	uint64_t time_next;
-//};
-
-struct thread_data {
+struct thread_data
+{
 	struct rte_swx_pipeline *p[THREAD_PIPELINES_MAX];
 	uint32_t n_pipelines;
 
-//	struct pipeline_data pipeline_data[THREAD_PIPELINES_MAX];
+	//	struct pipeline_data pipeline_data[THREAD_PIPELINES_MAX];
 	struct rte_ring *msgq_req;
 	struct rte_ring *msgq_rsp;
 	uint64_t timer_period; // Measured in CPU cycles.
@@ -69,10 +65,12 @@ static struct thread_data thread_data[RTE_MAX_LCORE];
 //
 
 // Free all msg queues from disabled threads
-void thread_free(void) {
+void thread_free(void)
+{
 	uint32_t i;
 
-	for (i = 0; i < RTE_MAX_LCORE; i++) {
+	for (i = 0; i < RTE_MAX_LCORE; i++)
+	{
 		struct thread *t = &thread[i];
 
 		if (!rte_lcore_is_enabled(i))
@@ -90,10 +88,12 @@ void thread_free(void) {
 }
 
 // initialize lcore WORKER message queues and local data
-int thread_init(void) {
+int thread_init(void)
+{
 	uint32_t i;
 
-	RTE_LCORE_FOREACH_WORKER(i) {
+	RTE_LCORE_FOREACH_WORKER(i)
+	{
 		char name[NAME_MAX];
 		struct rte_ring *msgq_req, *msgq_rsp;
 		struct thread *t = &thread[i];
@@ -103,26 +103,22 @@ int thread_init(void) {
 		// MSGQs
 		snprintf(name, sizeof(name), "THREAD-%04x-MSGQ-REQ", i);
 
-		msgq_req = rte_ring_create(name,
-			THREAD_MSGQ_SIZE,
-			cpu_id,
-			RING_F_SP_ENQ | RING_F_SC_DEQ);
+		msgq_req = rte_ring_create(name, THREAD_MSGQ_SIZE, cpu_id, RING_F_SP_ENQ | RING_F_SC_DEQ);
 
-		if (msgq_req == NULL) {
+		if (msgq_req == NULL)
+		{
 			thread_free();
 			return -1;
 		}
 
 		snprintf(name, sizeof(name), "THREAD-%04x-MSGQ-RSP", i);
 
-		msgq_rsp = rte_ring_create(name,
-			THREAD_MSGQ_SIZE,
-			cpu_id,
-			RING_F_SP_ENQ | RING_F_SC_DEQ);
+		msgq_rsp = rte_ring_create(name, THREAD_MSGQ_SIZE, cpu_id, RING_F_SP_ENQ | RING_F_SC_DEQ);
 
-		if (msgq_rsp == NULL) {
+		if (msgq_rsp == NULL)
+		{
 			rte_ring_free(msgq_req); // be sure to free req ring too!
-			thread_free(); // free all previously initialized threads
+			thread_free();					 // free all previously initialized threads
 			return -1;
 		}
 
@@ -144,7 +140,8 @@ int thread_init(void) {
 }
 
 // is the lcore WORKER thread running
-static inline int thread_is_running(uint32_t thread_id) {
+static inline int thread_is_running(uint32_t thread_id)
+{
 	enum rte_lcore_state_t thread_state;
 
 	thread_state = rte_eal_get_lcore_state(thread_id);
@@ -155,28 +152,34 @@ static inline int thread_is_running(uint32_t thread_id) {
 // Control thread & data plane threads: message definitions
 //
 
-enum thread_req_type {
+enum thread_req_type
+{
 	THREAD_REQ_PIPELINE_ENABLE = 0,
 	THREAD_REQ_PIPELINE_DISABLE,
 	THREAD_REQ_MAX
 };
 
-struct thread_msg_req {
+struct thread_msg_req
+{
 	enum thread_req_type type;
 
-	union {
-		struct {
+	union
+	{
+		struct
+		{
 			struct rte_swx_pipeline *p;
 			uint32_t timer_period_ms;
 		} pipeline_enable;
 
-		struct {
+		struct
+		{
 			struct rte_swx_pipeline *p;
 		} pipeline_disable;
 	};
 };
 
-struct thread_msg_rsp {
+struct thread_msg_rsp
+{
 	int status;
 };
 
@@ -184,18 +187,19 @@ struct thread_msg_rsp {
 // Control thread functions
 //
 
-static struct thread_msg_req * thread_msg_alloc(void) {
-	size_t size = RTE_MAX(sizeof(struct thread_msg_req),
-		sizeof(struct thread_msg_rsp));
-
+static struct thread_msg_req *thread_msg_alloc(void)
+{
+	size_t size = RTE_MAX(sizeof(struct thread_msg_req), sizeof(struct thread_msg_rsp));
 	return calloc(1, size);
 }
 
-static void thread_msg_free(struct thread_msg_rsp *rsp) {
+static void thread_msg_free(struct thread_msg_rsp *rsp)
+{
 	free(rsp);
 }
 
-static struct thread_msg_rsp * thread_msg_send_recv(uint32_t thread_id, struct thread_msg_req *req) {
+static struct thread_msg_rsp *thread_msg_send_recv(uint32_t thread_id, struct thread_msg_req *req)
+{
 	struct thread *t = &thread[thread_id];
 	struct rte_ring *msgq_req = t->msgq_req;
 	struct rte_ring *msgq_rsp = t->msgq_rsp;
@@ -203,27 +207,29 @@ static struct thread_msg_rsp * thread_msg_send_recv(uint32_t thread_id, struct t
 	int status;
 
 	// send
-	do {
+	do
+	{
 		status = rte_ring_sp_enqueue(msgq_req, req);
 	} while (status == -ENOBUFS);
 
 	// recv
-	do {
-		status = rte_ring_sc_dequeue(msgq_rsp, (void **) &rsp);
+	do
+	{
+		status = rte_ring_sc_dequeue(msgq_rsp, (void **)&rsp);
 	} while (status != 0);
 
 	return rsp;
 }
 
-int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint32_t timer_period_ms) {
+int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint32_t timer_period_ms)
+{
 	struct thread *t;
 	struct thread_msg_req *req;
 	struct thread_msg_rsp *rsp;
 	int status;
 
 	// Check input params
-	if ((thread_id >= RTE_MAX_LCORE) ||
-		(pl == NULL))
+	if ((thread_id >= RTE_MAX_LCORE) || (pl == NULL))
 		return -1;
 
 	// thread data initialized?
@@ -232,20 +238,15 @@ int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint
 		return -1;
 
 	// if thread is not running do it the easy way without message via queue
-	if (!thread_is_running(thread_id)) {
+	if (!thread_is_running(thread_id))
+	{
 		struct thread_data *td = &thread_data[thread_id];
-//		struct pipeline_data *tdp = &td->pipeline_data[td->n_pipelines];
 
 		if (td->n_pipelines >= THREAD_PIPELINES_MAX)
 			return -1;
 
 		// Data plane thread
 		td->p[td->n_pipelines] = pl;
-
-//		tdp->p = pl;
-//		tdp->timer_period = (rte_get_tsc_hz() * timer_period_ms) / 1000;
-//		tdp->time_next = rte_get_tsc_cycles() + tdp->timer_period;
-
 		td->n_pipelines++;
 
 		return 0;
@@ -279,7 +280,8 @@ int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint
 	return 0;
 }
 
-int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl) {
+int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl)
+{
 	struct thread *t;
 	struct thread_msg_req *req;
 	struct thread_msg_rsp *rsp;
@@ -295,24 +297,21 @@ int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl) {
 		return -1;
 
 	// if thread is not running do it the easy way without message via queue
-	if (!thread_is_running(thread_id)) {
+	if (!thread_is_running(thread_id))
+	{
 		struct thread_data *td = &thread_data[thread_id];
 		uint32_t i;
 
-		for (i = 0; i < td->n_pipelines; i++) {
-//			struct pipeline_data *tdp = &td->pipeline_data[i];
-
-//			if (tdp->p != pl)
+		for (i = 0; i < td->n_pipelines; i++)
+		{
 			if (td->p[i] != pl)
 				continue;
 
 			// Data plane thread
-			if (i < td->n_pipelines - 1) {
+			if (i < td->n_pipelines - 1)
+			{
 				struct rte_swx_pipeline *pipeline_last = td->p[td->n_pipelines - 1];
-//				struct pipeline_data *tdp_last = &td->pipeline_data[td->n_pipelines - 1];
-
 				td->p[i] = pipeline_last;
-//				memcpy(tdp, tdp_last, sizeof(*tdp));
 			}
 
 			td->n_pipelines--;
@@ -354,40 +353,39 @@ int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl) {
 // Data plane threads functions: message handling
 //
 
-static inline struct thread_msg_req * thread_msg_recv(struct rte_ring *msgq_req) {
+static inline struct thread_msg_req *thread_msg_recv(struct rte_ring *msgq_req)
+{
 	struct thread_msg_req *req;
 
-	int status = rte_ring_sc_dequeue(msgq_req, (void **) &req);
+	int status = rte_ring_sc_dequeue(msgq_req, (void **)&req);
 	if (status != 0)
 		return NULL;
 
 	return req;
 }
 
-static inline void thread_msg_send(struct rte_ring *msgq_rsp,	struct thread_msg_rsp *rsp) {
+static inline void thread_msg_send(struct rte_ring *msgq_rsp, struct thread_msg_rsp *rsp)
+{
 	int status;
 
-	do {
+	do
+	{
 		status = rte_ring_sp_enqueue(msgq_rsp, rsp);
 	} while (status == -ENOBUFS);
 }
 
-static struct thread_msg_rsp * thread_msg_handle_pipeline_enable(struct thread_data *t, struct thread_msg_req *req) {
-	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *) req;
-//	struct pipeline_data *p = &t->pipeline_data[t->n_pipelines];
+static struct thread_msg_rsp *thread_msg_handle_pipeline_enable(struct thread_data *t, struct thread_msg_req *req)
+{
+	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *)req;
 
 	// Request
-	if (t->n_pipelines >= THREAD_PIPELINES_MAX) {
+	if (t->n_pipelines >= THREAD_PIPELINES_MAX)
+	{
 		rsp->status = -1;
 		return rsp;
 	}
 
 	t->p[t->n_pipelines] = req->pipeline_enable.p;
-
-//	p->p = req->pipeline_enable.p;
-//	p->timer_period = (rte_get_tsc_hz() *	req->pipeline_enable.timer_period_ms) / 1000;
-//	p->time_next = rte_get_tsc_cycles() + p->timer_period;
-
 	t->n_pipelines++;
 
 	// Response
@@ -395,26 +393,23 @@ static struct thread_msg_rsp * thread_msg_handle_pipeline_enable(struct thread_d
 	return rsp;
 }
 
-static struct thread_msg_rsp * thread_msg_handle_pipeline_disable(struct thread_data *t, struct thread_msg_req *req) {
-	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *) req;
+static struct thread_msg_rsp *thread_msg_handle_pipeline_disable(struct thread_data *t, struct thread_msg_req *req)
+{
+	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *)req;
 	uint32_t n_pipelines = t->n_pipelines;
 	struct rte_swx_pipeline *pipeline = req->pipeline_disable.p;
 	uint32_t i;
 
 	// find pipeline
-	for (i = 0; i < n_pipelines; i++) {
-//		struct pipeline_data *p = &t->pipeline_data[i];
-
-//		if (p->p != pipeline)
+	for (i = 0; i < n_pipelines; i++)
+	{
 		if (t->p[i] != pipeline)
 			continue;
 
-		if (i < n_pipelines - 1) {
+		if (i < n_pipelines - 1)
+		{
 			struct rte_swx_pipeline *pipeline_last = t->p[n_pipelines - 1];
-//			struct pipeline_data *p_last = &t->pipeline_data[n_pipelines - 1];
-
 			t->p[i] = pipeline_last;
-//			memcpy(p, p_last, sizeof(*p));
 		}
 
 		t->n_pipelines--;
@@ -429,8 +424,10 @@ static struct thread_msg_rsp * thread_msg_handle_pipeline_disable(struct thread_
 }
 
 // handle all messages received during execution of the thread_main function
-static void thread_msg_handle(struct thread_data *t) {
-	for ( ; ; ) {
+static void thread_msg_handle(struct thread_data *t)
+{
+	for (;;)
+	{
 		struct thread_msg_req *req;
 		struct thread_msg_rsp *rsp;
 
@@ -438,7 +435,8 @@ static void thread_msg_handle(struct thread_data *t) {
 		if (req == NULL)
 			break;
 
-		switch (req->type) {
+		switch (req->type)
+		{
 		case THREAD_REQ_PIPELINE_ENABLE:
 			rsp = thread_msg_handle_pipeline_enable(t, req);
 			break;
@@ -448,7 +446,7 @@ static void thread_msg_handle(struct thread_data *t) {
 			break;
 
 		default:
-			rsp = (struct thread_msg_rsp *) req;
+			rsp = (struct thread_msg_rsp *)req;
 			rsp->status = -1;
 		}
 
@@ -461,7 +459,8 @@ static void thread_msg_handle(struct thread_data *t) {
 //
 
 // Function executed on all WORKER lcores
-int thread_main(void *arg __rte_unused) {
+int thread_main(void *arg __rte_unused)
+{
 	struct thread_data *t;
 	uint32_t thread_id, i;
 
@@ -469,7 +468,8 @@ int thread_main(void *arg __rte_unused) {
 	t = &thread_data[thread_id];
 
 	// Dispatch loop
-	for (i = 0; ; i++) {
+	for (i = 0;; i++)
+	{
 		uint32_t j;
 
 		// Data Plane
@@ -477,7 +477,8 @@ int thread_main(void *arg __rte_unused) {
 			rte_swx_pipeline_run(t->p[j], PIPELINE_INSTR_QUANTA);
 
 		// Control Plane
-		if ((i & 0xF) == 0) {
+		if ((i & 0xF) == 0)
+		{
 			uint64_t time = rte_get_tsc_cycles();
 			uint64_t time_next_min = UINT64_MAX;
 
@@ -488,7 +489,8 @@ int thread_main(void *arg __rte_unused) {
 			{
 				uint64_t time_next = t->time_next;
 
-				if (time_next <= time) {
+				if (time_next <= time)
+				{
 					thread_msg_handle(t);
 					time_next = time + t->timer_period;
 					t->time_next = time_next;
@@ -505,7 +507,9 @@ int thread_main(void *arg __rte_unused) {
 	return 0;
 }
 
-int thread_start(void) {
+// Start all SWX WORKER threads
+int thread_start(void)
+{
 	int status = 0;
 	status = rte_eal_mp_remote_launch(thread_main, NULL, SKIP_MAIN);
 	return status;

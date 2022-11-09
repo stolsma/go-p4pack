@@ -20,8 +20,8 @@ int thread_init(void);
  * Check that all configured WORKER lcores are in WAIT state, then run the thread_main function on all of them.
  *
  * Returns:
- * - 0: Success. Execution of thread_main function is started on all WORKER lcores. 
- * - (-EBUSY): At least one WORKER lcore is not in a WAIT state. In this case, thread_main is not started on any of 
+ * - 0: Success. Execution of thread_main function is started on all WORKER lcores.
+ * - (-EBUSY): At least one WORKER lcore is not in a WAIT state. In this case, thread_main is not started on any of
  * the WORKER lcores.
  */
 int thread_start(void);

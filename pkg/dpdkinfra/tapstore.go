@@ -10,19 +10,17 @@ import "C"
 
 import (
 	"errors"
-
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 )
 
 // TapStore represents a store of created Tap records
-type TapStore map[string]*dpdkswx.Tap
+type TapStore map[string]*Tap
 
 func CreateTapStore() TapStore {
 	return make(TapStore)
 }
 
 // Find tap record with name
-func (ts TapStore) Find(name string) *dpdkswx.Tap {
+func (ts TapStore) Find(name string) *Tap {
 	if name == "" {
 		return nil
 	}
@@ -31,8 +29,8 @@ func (ts TapStore) Find(name string) *dpdkswx.Tap {
 }
 
 // Create Tap interface. Returns a pointer to a Tap structure or nil with error.
-func (ts TapStore) Create(name string) (*dpdkswx.Tap, error) {
-	var tap dpdkswx.Tap
+func (ts TapStore) Create(name string) (*Tap, error) {
+	tap := Tap{}
 
 	if ts.Find(name) != nil {
 		return nil, errors.New("tap interface exists")
@@ -59,7 +57,7 @@ func (ts TapStore) Clear() {
 	}
 }
 
-func (ts TapStore) Iterate(fn func(key string, tap *dpdkswx.Tap) error) error {
+func (ts TapStore) Iterate(fn func(key string, tap *Tap) error) error {
 	if fn != nil {
 		for k, v := range ts {
 			if err := fn(k, v); err != nil {

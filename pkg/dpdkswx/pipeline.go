@@ -31,6 +31,8 @@ package dpdkswx
 #include <rte_mbuf.h>
 #include <rte_ethdev.h>
 #include <rte_swx_port_fd.h>
+#include <rte_swx_port_ethdev.h>
+#include <rte_swx_port_ring.h>
 #include <rte_swx_pipeline.h>
 #include <rte_swx_ctl.h>
 #include <rte_swx_port.h>
@@ -68,13 +70,11 @@ import (
 type Pipeline struct {
 	PipelineCtl                              // Pipeline Control Struct inclusion
 	name          string                     // name of the pipeline
-	p             *C.struct_rte_swx_pipeline // Struct definition only swx internal
+	p             *C.struct_rte_swx_pipeline // Struct definition, only for swx internal use!
 	timerPeriodms uint32                     //
 	build         bool                       // the pipeline is build
 	enabled       bool                       // the pipeline is enabled
 	threadID      uint32                     // thread pipeline is running on
-	cpuID         uint32                     //
-	netPortMask   [4]uint64                  //
 	actions       ActionStore                // all the defined actions in this pipeline
 	tables        TableStore                 // all the defined tables in this pipeline
 	clean         func()                     // the callback function called at clear
@@ -130,21 +130,11 @@ func (pl *Pipeline) Free() {
 	}
 }
 
-func (pl *Pipeline) PortInConfig(portID int, portType string, pktmbuf *Pktmbuf, fd C.int, mtu int, bsz int) error {
-	var params C.struct_rte_swx_port_fd_reader_params
-
-	if pktmbuf == nil {
-		return nil
-	}
-
-	params.fd = fd
-	params.mempool = pktmbuf.Mempool()
-	params.mtu = (C.uint)(mtu)
-	params.burst_size = (C.uint)(bsz)
+func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Pointer) error {
 	ptype := C.CString(portType)
+	defer C.free(unsafe.Pointer(ptype))
 
-	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, unsafe.Pointer(&params)) //nolint:gocritic
-	C.free(unsafe.Pointer(ptype))
+	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, params)
 
 	if status != 0 {
 		return err(status)
@@ -153,23 +143,26 @@ func (pl *Pipeline) PortInConfig(portID int, portType string, pktmbuf *Pktmbuf, 
 }
 
 // pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
-func (pl *Pipeline) AddInputPortTap(portID int, tap *Tap, pktmbuf *Pktmbuf, mtu int, bsz int) error {
-	if tap == nil || pktmbuf == nil {
+func (pl *Pipeline) AddInputPortTap(portID int, tap int, pktmbuf *Pktmbuf, mtu int, bsz int) error {
+	var params C.struct_rte_swx_port_fd_reader_params
+
+	if tap == 0 || pktmbuf == nil {
 		return nil
 	}
 
-	return pl.PortInConfig(portID, "fd", pktmbuf, tap.Fd(), mtu, bsz)
+	params.fd = C.int(tap)
+	params.mempool = pktmbuf.Mempool()
+	params.mtu = (C.uint)(mtu)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortInConfig(portID, "fd", unsafe.Pointer(&params))
 }
 
-func (pl *Pipeline) PortOutConfig(portID int, portType string, fd C.int, bsz int) error {
-	var params C.struct_rte_swx_port_fd_writer_params
-
-	params.fd = fd
-	params.burst_size = (C.uint)(bsz)
+func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Pointer) error {
 	ptype := C.CString(portType)
+	defer C.free(unsafe.Pointer(ptype))
 
-	status := int(C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, unsafe.Pointer(&params))) //nolint:gocritic
-	C.free(unsafe.Pointer(ptype))
+	status := C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, params)
 
 	if status != 0 {
 		return err(status)
@@ -178,12 +171,46 @@ func (pl *Pipeline) PortOutConfig(portID int, portType string, fd C.int, bsz int
 }
 
 // pipeline PIPELINE0 port out 0 tap sw0 bsz 1
-func (pl *Pipeline) AddOutputPortTap(portID int, tap *Tap, bsz int) error {
-	if tap == nil {
+func (pl *Pipeline) AddOutputPortTap(portID int, tap int, bsz int) error {
+	var params C.struct_rte_swx_port_fd_writer_params
+
+	if tap == 0 {
 		return nil
 	}
 
-	return pl.PortOutConfig(portID, "fd", tap.Fd(), bsz)
+	params.fd = C.int(tap)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortOutConfig(portID, "fd", unsafe.Pointer(&params))
+}
+
+func (pl *Pipeline) AddOutputPortEthdev(portID int, ethdev *Ethdev, txq int, bsz int) error {
+	var params C.struct_rte_swx_port_ethdev_writer_params
+
+	if ethdev == nil {
+		return nil
+	}
+
+	params.dev_name = C.CString(ethdev.devName)
+	defer C.free(unsafe.Pointer(params.dev_name))
+	params.queue_id = C.ushort(txq)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortOutConfig(portID, "ethdev", unsafe.Pointer(&params))
+}
+
+func (pl *Pipeline) AddOutputPortRing(portID int, ring *Ring, bsz int) error {
+	var params C.struct_rte_swx_port_ring_writer_params
+
+	if ring == nil {
+		return nil
+	}
+
+	params.name = C.CString(ring.name)
+	defer C.free(unsafe.Pointer(params.name))
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortOutConfig(portID, "ring", unsafe.Pointer(&params))
 }
 
 func (pl *Pipeline) BuildFromSpec(specfile string) error {
@@ -498,18 +525,19 @@ func (pl *Pipeline) TableStatsRead(tableName string) (*TableStats, error) {
 		return nil, fmt.Errorf("Table (Name: %s) stats read error", tableName)
 	}
 
-	table := pl.tables.Find(tableName)
+	table := pl.tables.FindName(tableName)
 	var tableStats = TableStats{
 		nPktsHit:    uint64(cTableStats.n_pkts_hit),
 		nPktsMiss:   uint64(cTableStats.n_pkts_miss),
 		nPktsAction: make([]actionfield, table.nActions),
 	}
 	actionStat := unsafe.Slice((*uint64)(ret), actionSize)
-	table.actions.ForEach(func(action *TableAction) {
+	table.actions.ForEach(func(key string, action *TableAction) error {
 		tableStats.nPktsAction[action.GetIndex()] = actionfield{
-			name: action.GetName(),
+			name: action.GetActionName(),
 			pkts: actionStat[action.action.GetIndex()],
 		}
+		return nil
 	})
 
 	return &tableStats, nil

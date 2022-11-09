@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// os.Args
-	dpdki, err := dpdkinfra.Create(strings.Split(dpdkArgs, " "))
+	dpdki, err := dpdkinfra.CreateAndInit(strings.Split(dpdkArgs, " "))
 	if err != nil {
 		log.Fatalln("DPDKInfraInit failed:", err)
 	}

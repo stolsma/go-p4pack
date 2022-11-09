@@ -80,44 +80,51 @@ Setup network namespaced test environment with two hosts:
 This script will execute: 
 
 ``` bash
-sudo ip netns add host0
-sudo ip link set sw0 netns host0
-sudo ip netns exec host0 sudo ip link set lo up
-sudo ip netns exec host0 sudo ip link set sw0 address 32:fb:fa:c6:67:1f
-sudo ip netns exec host0 sudo ip -4 addr add 192.168.222.1/24 dev sw0
-sudo ip netns exec host0 sudo ip link set sw0 up
-sudo ip netns exec host0 sudo arp -s 192.168.222.2 e6:48:78:26:12:52
-
 sudo ip netns add host1
 sudo ip link set sw1 netns host1
 sudo ip netns exec host1 sudo ip link set lo up
-sudo ip netns exec host1 sudo ip link set sw1 address e6:48:78:26:12:52
-sudo ip netns exec host1 sudo ip -4 addr add 192.168.222.2/24 dev sw1
+sudo ip netns exec host1 sudo ip link set sw1 address 32:fb:fa:c6:67:01
+sudo ip netns exec host1 sudo ip -4 addr add 192.168.222.1/24 dev sw1
 sudo ip netns exec host1 sudo ip link set sw1 up
-sudo ip netns exec host1 sudo arp -s 192.168.222.1 32:fb:fa:c6:67:1f
+sudo ip netns exec host1 sudo arp -s 192.168.222.2 32:fb:fa:c6:67:02
+
+sudo ip netns add host2
+sudo ip link set sw2 netns host2
+sudo ip netns exec host2 sudo ip link set lo up
+sudo ip netns exec host2 sudo ip link set sw2 address 32:fb:fa:c6:67:02
+sudo ip netns exec host2 sudo ip -4 addr add 192.168.222.2/24 dev sw2
+sudo ip netns exec host2 sudo ip link set sw2 up
+sudo ip netns exec host2 sudo arp -s 192.168.222.1 32:fb:fa:c6:67:01
 ```
 
 Test connectivity
 
 ``` bash
 sudo ip netns list
-sudo ip netns exec host0 ping 192.168.222.2
-sudo ip netns exec host1 ping 192.168.222.1
+sudo ip netns exec host1 ping 192.168.222.2
+sudo ip netns exec host2 ping 192.168.222.1
 ```
 
 Do some performance testing
 
 ``` bash
 # add -u to do UDP testing!
-sudo ip netns exec host0 iperf -s
-sudo ip netns exec host1 iperf -c 192.168.222.1 -P 10
+sudo ip netns exec host1 iperf -s
+sudo ip netns exec host2 iperf -c 192.168.222.1 -P 10
+
+# with iperf3...
+sudo ip netns exec host1 iperf3 -s
+sudo ip netns exec host2 iperf3 -c 192.168.222.1
+
+# to dump packets send and received from interface
+sudo ip netns exec host1 tcpdump -e -i sw1
 ```
 
 Remove the test namespace environment
 
 ``` bash
-sudo ip netns del host0
 sudo ip netns del host1
+sudo ip netns del host2
 ```
 
 # Development Scratch Space
@@ -173,6 +180,15 @@ docker run --rm -u 1000:1000 -v ${PWD}:/p4ccode -w /p4ccode stolsma/p4c-all:late
 sudo ../../dpdk-pipeline -c 0x3 -- -s ./vxlan_pcap.cli
 
 sudo ../../dpdk-pipeline -c 0x3 --vdev=net_tap0,iface=sw0 --vdev=net_tap1,iface=sw1  --vdev=net_tap2,iface=sw2  --vdev=net_tap3,iface=sw3 -- -s ./vxlan.cli
+
+
+
+Laatste keer:
+sander@TTCNB004:~/develop/dpdk-pipeline$ make -C infra install_dir=~/develop/dpdk-pipeline
+sudo ./dpdk_infra -c 0x3 -- -s ./examples/ipdk-simple_l3/simple_l3.cli
+
+
+
 
 ```
 

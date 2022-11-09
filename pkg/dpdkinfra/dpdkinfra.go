@@ -17,17 +17,22 @@ type DpdkInfra struct {
 	mbufStore     PktmbufStore
 	ethdevStore   EthdevStore
 	ringStore     RingStore
-	pipelineStore PipelineStore
 	tapStore      TapStore
+	pipelineStore PipelineStore
 }
 
-func Create(dpdkArgs []string) (*DpdkInfra, error) {
+func Create() *DpdkInfra {
 	var di DpdkInfra
+	return &di
+}
+
+func CreateAndInit(dpdkArgs []string) (*DpdkInfra, error) {
+	di := Create()
 	err := di.Init(dpdkArgs)
 	if err != nil {
 		return nil, err
 	}
-	return &di, nil
+	return di, nil
 }
 
 func (di *DpdkInfra) Init(dpdkArgs []string) error {
@@ -101,7 +106,7 @@ func (di *DpdkInfra) TapCreate(name string) error {
 
 func (di *DpdkInfra) TapList(name string) (string, error) {
 	result := ""
-	err := di.tapStore.Iterate(func(key string, tap *dpdkswx.Tap) error {
+	err := di.tapStore.Iterate(func(key string, tap *Tap) error {
 		result += fmt.Sprintf("  %s \n", tap.Name())
 		return nil
 	})
@@ -141,7 +146,7 @@ func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName st
 
 	pipeline.PortIsValid()
 
-	return pipeline.AddInputPortTap(portID, tap, pktmbuf, mtu, bsz)
+	return pipeline.AddInputPortTap(portID, int(tap.Fd()), pktmbuf, mtu, bsz)
 }
 
 func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName string, bsz int) error {
@@ -157,7 +162,7 @@ func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName s
 
 	pipeline.PortIsValid()
 
-	return pipeline.AddOutputPortTap(portID, tap, bsz)
+	return pipeline.AddOutputPortTap(portID, int(tap.Fd()), bsz)
 }
 
 func (di *DpdkInfra) PipelineBuild(plName string, specfile string) error {

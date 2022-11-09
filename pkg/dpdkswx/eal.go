@@ -6,24 +6,21 @@ package dpdkswx
 /*
 #cgo pkg-config: libdpdk
 
+#include <stdlib.h>
 #include <rte_eal.h>
 
 */
 import "C"
-
-import (
-	"github.com/yerden/go-dpdk/common"
-)
+import "unsafe"
 
 // Call rte_eal_init and report its return value and rte_errno as an error.
 func EalInit(args []string) (int, error) {
-	mem := common.NewAllocatorSession(&common.StdAlloc{})
-	defer mem.Flush()
-
 	argc := C.int(len(args))
 	argv := make([]*C.char, argc+1)
 	for i := range args {
-		argv[i] = (*C.char)(common.CString(mem, args[i]))
+		cstring := C.CString(args[i])
+		defer C.free(unsafe.Pointer(cstring))
+		argv[i] = cstring
 	}
 
 	// initialize EAL
