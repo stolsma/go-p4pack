@@ -1,11 +1,9 @@
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package dpdkswx
+package pipeline
 
 /*
-#cgo pkg-config: libdpdk
-
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
@@ -64,20 +62,31 @@ import (
 	"errors"
 	"fmt"
 	"unsafe"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
 type Pipeline struct {
-	PipelineCtl                              // Pipeline Control Struct inclusion
+	Ctl                                      // Pipeline Control Struct inclusion
 	name          string                     // name of the pipeline
 	p             *C.struct_rte_swx_pipeline // Struct definition, only for swx internal use!
-	timerPeriodms uint32                     //
+	timerPeriodms uint                       //
 	build         bool                       // the pipeline is build
 	enabled       bool                       // the pipeline is enabled
-	threadID      uint32                     // thread pipeline is running on
-	actions       ActionStore                // all the defined actions in this pipeline
-	tables        TableStore                 // all the defined tables in this pipeline
-	clean         func()                     // the callback function called at clear
+	threadID      uint                       // ID of the Lcore thread this pipeline is running on
+	actions       ActionStore                // all the defined actions in this pipeline when build
+	tables        TableStore                 // all the defined tables in this pipeline when build
+	// ports_in
+	// ports_out
+	// mirror slots
+	// mirror sessions
+	// selectors
+	// learners
+	// registerArray
+	// metadataArray
+	clean func() // the callback function called at clear
 }
 
 // Initialize Pipeline. Returns an error if something went wrong.
@@ -88,7 +97,7 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	status := int(C.rte_swx_pipeline_config(&p, (C.int)(numaNode))) //nolint:gocritic
 	if status != 0 {
 		C.rte_swx_pipeline_free(p)
-		return err(status)
+		return common.Err(status)
 	}
 
 	// Node fill in
@@ -106,19 +115,23 @@ func (pl *Pipeline) GetName() string {
 	return pl.name
 }
 
-func (pl *Pipeline) GetThreadID() uint32 {
+func (pl *Pipeline) GetThreadID() uint {
 	return pl.threadID
 }
 
-func (pl *Pipeline) GetPipeline() *C.struct_rte_swx_pipeline {
-	return pl.p
+func (pl *Pipeline) GetPipeline() unsafe.Pointer {
+	return unsafe.Pointer(pl.p)
+}
+
+func (pl *Pipeline) GetTimerPeriodms() uint {
+	return pl.timerPeriodms
 }
 
 // Pipeline struct free. If internal pipeline struct pointer is nil, no operation is performed only clean fn is called
 // if set in structure.
 func (pl *Pipeline) Free() {
 	if pl.p != nil {
-		pl.PipelineCtl.Free()
+		pl.Ctl.Free()
 		C.rte_swx_pipeline_free(pl.p)
 		pl.build = false
 		pl.enabled = false
@@ -137,21 +150,21 @@ func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Poin
 	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, params)
 
 	if status != 0 {
-		return err(status)
+		return common.Err(status)
 	}
 	return nil
 }
 
 // pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
-func (pl *Pipeline) AddInputPortTap(portID int, tap int, pktmbuf *Pktmbuf, mtu int, bsz int) error {
+func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *pktmbuf.Pktmbuf, mtu int, bsz int) error {
 	var params C.struct_rte_swx_port_fd_reader_params
 
-	if tap == 0 || pktmbuf == nil {
+	if tap == 0 || pm == nil {
 		return nil
 	}
 
 	params.fd = C.int(tap)
-	params.mempool = pktmbuf.Mempool()
+	params.mempool = (*C.struct_rte_mempool)(pm.Mempool())
 	params.mtu = (C.uint)(mtu)
 	params.burst_size = (C.uint)(bsz)
 
@@ -165,7 +178,7 @@ func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Poi
 	status := C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, params)
 
 	if status != 0 {
-		return err(status)
+		return common.Err(status)
 	}
 	return nil
 }
@@ -184,14 +197,14 @@ func (pl *Pipeline) AddOutputPortTap(portID int, tap int, bsz int) error {
 	return pl.PortOutConfig(portID, "fd", unsafe.Pointer(&params))
 }
 
-func (pl *Pipeline) AddOutputPortEthdev(portID int, ethdev *Ethdev, txq int, bsz int) error {
+func (pl *Pipeline) AddOutputPortEthdev(portID int, devName string, txq int, bsz int) error {
 	var params C.struct_rte_swx_port_ethdev_writer_params
 
-	if ethdev == nil {
+	if devName == "" {
 		return nil
 	}
 
-	params.dev_name = C.CString(ethdev.devName)
+	params.dev_name = C.CString(devName)
 	defer C.free(unsafe.Pointer(params.dev_name))
 	params.queue_id = C.ushort(txq)
 	params.burst_size = (C.uint)(bsz)
@@ -199,14 +212,14 @@ func (pl *Pipeline) AddOutputPortEthdev(portID int, ethdev *Ethdev, txq int, bsz
 	return pl.PortOutConfig(portID, "ethdev", unsafe.Pointer(&params))
 }
 
-func (pl *Pipeline) AddOutputPortRing(portID int, ring *Ring, bsz int) error {
+func (pl *Pipeline) AddOutputPortRing(portID int, ringName string, bsz int) error {
 	var params C.struct_rte_swx_port_ring_writer_params
 
-	if ring == nil {
+	if ringName == "" {
 		return nil
 	}
 
-	params.name = C.CString(ring.name)
+	params.name = C.CString(ringName)
 	defer C.free(unsafe.Pointer(params.name))
 	params.burst_size = (C.uint)(bsz)
 
@@ -219,10 +232,10 @@ func (pl *Pipeline) BuildFromSpec(specfile string) error {
 
 	res := C.pipeline_build_from_spec(pl.p, cspecfile)
 	if res != 0 {
-		return err(res)
+		return common.Err(res)
 	}
 
-	err := pl.PipelineCtl.Init(pl)
+	err := pl.Ctl.Init(pl)
 	if err != nil {
 		return err
 	}
@@ -242,14 +255,9 @@ func (pl *Pipeline) BuildFromSpec(specfile string) error {
 	return nil
 }
 
-func (pl *Pipeline) Enable(threadID uint32) error {
+func (pl *Pipeline) SetEnabled(threadID uint) error {
 	if pl.enabled {
 		return errors.New("pipeline already enabled")
-	}
-
-	err := threadPipelineEnable(threadID, pl)
-	if err != nil {
-		return err
 	}
 
 	pl.threadID = threadID
@@ -258,10 +266,14 @@ func (pl *Pipeline) Enable(threadID uint32) error {
 	return nil
 }
 
-func (pl *Pipeline) Disable() error {
-	res := threadPipelineDisable(pl)
+func (pl *Pipeline) SetDisabled() error {
+	if !pl.enabled {
+		return errors.New("pipeline is not enabled")
+	}
+
+	pl.threadID = 0
 	pl.enabled = false
-	return res
+	return nil
 }
 
 // Pipeline NUMA node get
@@ -274,204 +286,7 @@ func (pl *Pipeline) NumaNodeGet() (int, error) {
 	var numaNode C.int
 
 	res := C.rte_swx_ctl_pipeline_numa_node_get(pl.p, &numaNode)
-	return int(numaNode), err(res)
-}
-
-type ActionInfo C.struct_rte_swx_ctl_action_info
-
-func (ai *ActionInfo) GetName() string {
-	return C.GoString(&ai.name[0])
-}
-
-func (ai *ActionInfo) GetNArgs() int {
-	return (int)(ai.n_args)
-}
-
-func (pl *Pipeline) ActionInfoGet(actionID int) (*ActionInfo, error) {
-	var actionInfo = &ActionInfo{}
-	result := C.rte_swx_ctl_action_info_get(pl.p, (C.uint)(actionID), (*C.struct_rte_swx_ctl_action_info)(actionInfo))
-
-	if result != 0 {
-		return nil, fmt.Errorf("action_info_get error: %d", result)
-	}
-
-	return actionInfo, nil
-}
-
-type ActionArgInfo C.struct_rte_swx_ctl_action_arg_info
-
-func (aai *ActionArgInfo) GetName() string {
-	return C.GoString(&aai.name[0])
-}
-
-// Action argument size (in bits)
-func (aai *ActionArgInfo) GetNBits() int {
-	return (int)(aai.n_bits)
-}
-
-// Non-zero (true) when this action argument must be stored in the table in network byte order (NBO), zero when it must
-// be stored in host byte order (HBO).
-func (aai *ActionArgInfo) IsNetworkByteOrder() bool {
-	return aai.is_network_byte_order == 0
-}
-
-func (pl *Pipeline) ActionArgInfoGet(actionID int, actionArgID int) (*ActionArgInfo, error) {
-	var actionArgInfo = &ActionArgInfo{}
-	result := C.rte_swx_ctl_action_arg_info_get(pl.p, (C.uint)(actionID), (C.uint)(actionArgID),
-		(*C.struct_rte_swx_ctl_action_arg_info)(actionArgInfo))
-
-	if result != 0 {
-		return nil, fmt.Errorf("action_info_get error: %d", result)
-	}
-
-	return actionArgInfo, nil
-}
-
-type PipelineInfo C.struct_rte_swx_ctl_pipeline_info
-
-func (pi *PipelineInfo) GetNPortsIn() int {
-	return int(pi.n_ports_in)
-}
-
-func (pi *PipelineInfo) GetNPortsOut() int {
-	return int(pi.n_ports_out)
-}
-
-func (pi *PipelineInfo) GetNMirroringSlots() int {
-	return int(pi.n_mirroring_slots)
-}
-
-func (pi *PipelineInfo) GetNMirroringSessions() int {
-	return int(pi.n_mirroring_sessions)
-}
-
-func (pi *PipelineInfo) GetNActions() int {
-	return int(pi.n_actions)
-}
-
-func (pi *PipelineInfo) GetNTables() int {
-	return int(pi.n_tables)
-}
-
-func (pi *PipelineInfo) GetNSelectors() int {
-	return int(pi.n_selectors)
-}
-
-func (pi *PipelineInfo) GetNLearners() int {
-	return int(pi.n_learners)
-}
-
-func (pi *PipelineInfo) GetNRegarrays() int {
-	return int(pi.n_regarrays)
-}
-
-func (pi *PipelineInfo) GetNMetarrays() int {
-	return int(pi.n_metarrays)
-}
-
-func (pl *Pipeline) PipelineInfoGet() (*PipelineInfo, error) {
-	var pipeInfo PipelineInfo
-
-	res := C.rte_swx_ctl_pipeline_info_get(pl.p, (*C.struct_rte_swx_ctl_pipeline_info)(&pipeInfo))
-	if res < 0 {
-		return nil, errors.New("pipelineInfoGet failed")
-	}
-
-	return &pipeInfo, nil
-}
-
-// information about the structure of a table
-type TableInfo C.struct_rte_swx_ctl_table_info
-
-// return the name of the table
-func (ti *TableInfo) GetName() string {
-	return C.GoString(&ti.name[0])
-}
-
-func (ti *TableInfo) GetArgs() string {
-	return C.GoString(&ti.args[0])
-}
-
-func (ti *TableInfo) GetNMatchFields() int {
-	return int(ti.n_match_fields)
-}
-
-func (ti *TableInfo) GetNActions() int {
-	return int(ti.n_actions)
-}
-
-func (ti *TableInfo) GetDefaultActionIsConst() bool {
-	return ti.default_action_is_const > 0
-}
-
-func (ti *TableInfo) GetSize() int {
-	return int(ti.size)
-}
-
-func (pl *Pipeline) TableInfoGet(tableID int) (*TableInfo, error) {
-	var tableInfo TableInfo
-
-	status := C.rte_swx_ctl_table_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_table_info)(&tableInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) info get error", tableID)
-	}
-	return &tableInfo, nil
-}
-
-// information about table match fields
-type TableMatchFieldInfo C.struct_rte_swx_ctl_table_match_field_info
-
-func (tmfi *TableMatchFieldInfo) GetMatchType() int {
-	return int(tmfi.match_type)
-}
-
-func (tmfi *TableMatchFieldInfo) GetIsHeader() bool {
-	return tmfi.is_header > 0
-}
-
-func (tmfi *TableMatchFieldInfo) GetNBits() int {
-	return int(tmfi.n_bits)
-}
-
-func (tmfi *TableMatchFieldInfo) GetOffset() int {
-	return int(tmfi.offset)
-}
-
-func (pl *Pipeline) TableMatchFieldInfoGet(tableID int, matchFieldID int) (*TableMatchFieldInfo, error) {
-	var tableMatchFieldInfo TableMatchFieldInfo
-
-	status := C.rte_swx_ctl_table_match_field_info_get(
-		pl.p, (C.uint)(tableID), (C.uint)(matchFieldID), (*C.struct_rte_swx_ctl_table_match_field_info)(&tableMatchFieldInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) match field (ID: %d) info get error", tableID, matchFieldID)
-	}
-	return &tableMatchFieldInfo, nil
-}
-
-// information about table actions
-type TableActionInfo C.struct_rte_swx_ctl_table_action_info
-
-func (tai *TableActionInfo) GetActionID() int {
-	return int(tai.action_id)
-}
-
-func (tai *TableActionInfo) GetActionIsForTableEntries() bool {
-	return tai.action_is_for_table_entries > 0
-}
-
-func (tai *TableActionInfo) GetActionIsForDefaultEntry() bool {
-	return tai.action_is_for_default_entry > 0
-}
-
-func (pl *Pipeline) TableActionInfoGet(tableID int, actionID int) (*TableActionInfo, error) {
-	var tableActionInfo TableActionInfo
-
-	status := C.rte_swx_ctl_table_action_info_get(
-		pl.p, (C.uint)(tableID), (C.uint)(actionID), (*C.struct_rte_swx_ctl_table_action_info)(&tableActionInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) action (ID: %d) info get error", tableID, actionID)
-	}
-	return &tableActionInfo, nil
+	return int(numaNode), common.Err(res)
 }
 
 //

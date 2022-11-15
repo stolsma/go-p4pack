@@ -6,17 +6,17 @@ package dpdkinfra
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
 // EthdevStore represents a store of created DPDK Ethdev interfaces
-type EthdevStore map[string]*dpdkswx.Ethdev
+type EthdevStore map[string]*ethdev.Ethdev
 
 func CreateEthdevStore() EthdevStore {
 	return make(EthdevStore)
 }
 
-func (ps EthdevStore) Find(name string) *dpdkswx.Ethdev {
+func (ps EthdevStore) Find(name string) *ethdev.Ethdev {
 	if name == "" {
 		return nil
 	}
@@ -25,8 +25,8 @@ func (ps EthdevStore) Find(name string) *dpdkswx.Ethdev {
 }
 
 // Create Ethdev. Returns a pointer to a Ethdev structure or nil with error.
-func (ps EthdevStore) Create(name string, params *dpdkswx.EthdevParams) (*dpdkswx.Ethdev, error) {
-	var ethdev dpdkswx.Ethdev
+func (ps EthdevStore) Create(name string, params *ethdev.Params) (*ethdev.Ethdev, error) {
+	var ethdev ethdev.Ethdev
 
 	if ps.Find(name) != nil {
 		return nil, errors.New("ethdev with this name exists")

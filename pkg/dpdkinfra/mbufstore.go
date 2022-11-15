@@ -6,17 +6,17 @@ package dpdkinfra
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
 // PktmbufStore represents a store of created DPDK Pktmbuf memory buffers
-type PktmbufStore map[string]*dpdkswx.Pktmbuf
+type PktmbufStore map[string]*pktmbuf.Pktmbuf
 
 func CreatePktmbufStore() PktmbufStore {
 	return make(PktmbufStore)
 }
 
-func (ps PktmbufStore) Find(name string) *dpdkswx.Pktmbuf {
+func (ps PktmbufStore) Find(name string) *pktmbuf.Pktmbuf {
 	if name == "" {
 		return nil
 	}
@@ -31,8 +31,8 @@ func (ps PktmbufStore) Create(
 	bufferSize uint32,
 	poolSize uint32,
 	cacheSize uint32,
-	cpuID int) (*dpdkswx.Pktmbuf, error) {
-	var pktmbuf dpdkswx.Pktmbuf
+	cpuID int) (*pktmbuf.Pktmbuf, error) {
+	var pm pktmbuf.Pktmbuf
 
 	if ps.Find(name) != nil {
 		return nil, errors.New("pktmbuf mempool with this name exists")
@@ -44,29 +44,29 @@ func (ps PktmbufStore) Create(
 	}
 
 	// initialize
-	err := pktmbuf.Init(name, bufferSize, poolSize, cacheSize, cpuID, clean)
+	err := pm.Init(name, bufferSize, poolSize, cacheSize, cpuID, clean)
 	if err != nil {
 		return nil, err
 	}
 
 	// add node to list
-	ps[name] = &pktmbuf
+	ps[name] = &pm
 
-	return &pktmbuf, nil
+	return &pm, nil
 }
 
 // Delete given pktmbuf mempool from the store and free corresponding pktmbuf mempool memory
 func (ps PktmbufStore) Delete(name string) {
-	pktmbuf := ps.Find(name)
+	pm := ps.Find(name)
 
-	if pktmbuf != nil {
-		pktmbuf.Free()
+	if pm != nil {
+		pm.Free()
 	}
 }
 
 // Delete all pktmbuf mempools and free corresponding mempool memory
 func (ps PktmbufStore) Clear() {
-	for _, pktbuf := range ps {
-		pktbuf.Free()
+	for _, pm := range ps {
+		pm.Free()
 	}
 }

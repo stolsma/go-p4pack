@@ -1,14 +1,16 @@
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package dpdkswx
+package common
 
 /*
 #include <rte_memory.h>
 #include <rte_errno.h>
+
 static int rteErrno() {
 	return rte_errno;
 }
+
 */
 import "C"
 
@@ -43,20 +45,20 @@ func errno(n int64) error {
 }
 
 // RteErrno returns rte_errno variable.
-func RteErrno() error {
+func rteErrno() error {
 	return errno(int64(C.rteErrno()))
 }
 
 // IntToErr converts n into an 'errno' error. If n is not a signed
 // integer it will panic.
-func IntToErr(n interface{}) error {
+func intToErr(n interface{}) error {
 	x := reflect.ValueOf(n).Int()
 	return errno(x)
 }
 
-func err(n ...interface{}) error {
+func Err(n ...interface{}) error {
 	if len(n) == 0 {
-		return RteErrno()
+		return rteErrno()
 	}
-	return IntToErr(n[0])
+	return intToErr(n[0])
 }

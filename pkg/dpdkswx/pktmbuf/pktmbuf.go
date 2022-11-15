@@ -1,11 +1,9 @@
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package dpdkswx
+package pktmbuf
 
 /*
-#cgo pkg-config: libdpdk
-
 #include <rte_mempool.h>
 #include <rte_mbuf.h>
 
@@ -14,6 +12,8 @@ import "C"
 import (
 	"errors"
 	"unsafe"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 )
 
 var BufferSizeMin int = C.sizeof_struct_rte_mbuf + C.RTE_PKTMBUF_HEADROOM
@@ -62,7 +62,7 @@ func (pm *Pktmbuf) Init(
 		C.int(cpuID),
 	)
 	if m == nil {
-		return err()
+		return common.Err()
 	}
 
 	// Node fill in
@@ -78,8 +78,8 @@ func (pm *Pktmbuf) Name() string {
 	return pm.name
 }
 
-func (pm *Pktmbuf) Mempool() *C.struct_rte_mempool {
-	return pm.m
+func (pm *Pktmbuf) Mempool() unsafe.Pointer {
+	return unsafe.Pointer(pm.m)
 }
 
 func (pm *Pktmbuf) Free() {

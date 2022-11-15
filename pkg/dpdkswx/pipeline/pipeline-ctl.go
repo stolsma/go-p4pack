@@ -1,11 +1,9 @@
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package dpdkswx
+package pipeline
 
 /*
-#cgo pkg-config: libdpdk
-
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
@@ -17,27 +15,28 @@ package dpdkswx
 
 #include <rte_swx_pipeline.h>
 #include <rte_swx_ctl.h>
-
 */
 import "C"
 import (
 	"errors"
 	"fmt"
 	"unsafe"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 )
 
 // The Pipeline control handling structure
-type PipelineCtl struct {
+type Ctl struct {
 	ctl *C.struct_rte_swx_ctl_pipeline // Struct definition only swx internal
 }
 
-func CreatePipelineCtl(pl *Pipeline) (*PipelineCtl, error) {
-	pctl := &PipelineCtl{}
+func CreatePipelineCtl(pl *Pipeline) (*Ctl, error) {
+	pctl := &Ctl{}
 	return pctl, pctl.Init(pl)
 }
 
-func (pctl *PipelineCtl) Init(pl *Pipeline) error {
-	pctl.ctl = C.rte_swx_ctl_pipeline_create(pl.GetPipeline())
+func (pctl *Ctl) Init(pl *Pipeline) error {
+	pctl.ctl = C.rte_swx_ctl_pipeline_create((*C.struct_rte_swx_pipeline)(pl.GetPipeline()))
 	if pctl.ctl == nil {
 		return errors.New("rte_swx_ctl_pipeline_create error")
 	}
@@ -46,7 +45,7 @@ func (pctl *PipelineCtl) Init(pl *Pipeline) error {
 }
 
 // Pipeline control struct free. If internal ctl struct pointer is nil, no operation is performed.
-func (pctl *PipelineCtl) Free() {
+func (pctl *Ctl) Free() {
 	if pctl.ctl == nil {
 		return
 	}
@@ -75,13 +74,13 @@ const (
 // 0 on success or the following error codes otherwise:
 //
 //	-EINVAL: Invalid argument.
-func (pctl *PipelineCtl) Commit(action CommitAction) error {
+func (pctl *Ctl) Commit(action CommitAction) error {
 	res := C.rte_swx_ctl_pipeline_commit(pctl.ctl, (C.int)(action))
-	return err(res)
+	return common.Err(res)
 }
 
 // Discard all the scheduled pipeline table work.
-func (pctl *PipelineCtl) Abort() {
+func (pctl *Ctl) Abort() {
 	C.rte_swx_ctl_pipeline_abort(pctl.ctl)
 }
 
@@ -106,7 +105,7 @@ func (te *TableEntry) Free() {
 // @param line String containing the table entry.
 //
 // @return *TableEntry on success or nil otherwise:
-func (pctl *PipelineCtl) TableEntryRead(tableName string, line string) *TableEntry {
+func (pctl *Ctl) TableEntryRead(tableName string, line string) *TableEntry {
 	var isBlankOrComment C.int
 
 	cTableName := C.CString(tableName)
@@ -131,7 +130,7 @@ func (pctl *PipelineCtl) TableEntryRead(tableName string, line string) *TableEnt
 //
 // @return 0 on success or the following error codes otherwise:
 // -EINVAL: Invalid argument.
-func (pctl *PipelineCtl) TableEntryAdd(tableName string, entry *TableEntry) error {
+func (pctl *Ctl) TableEntryAdd(tableName string, entry *TableEntry) error {
 	cTableName := C.CString(tableName)
 	defer C.free(unsafe.Pointer(cTableName))
 
@@ -153,7 +152,7 @@ func (pctl *PipelineCtl) TableEntryAdd(tableName string, entry *TableEntry) erro
 //
 // @return 0 on success or the following error codes otherwise:
 // -EINVAL: Invalid argument.
-func (pctl *PipelineCtl) TableDefaultEntryAdd(tableName string, entry *TableEntry) error {
+func (pctl *Ctl) TableDefaultEntryAdd(tableName string, entry *TableEntry) error {
 	cTableName := C.CString(tableName)
 	defer C.free(unsafe.Pointer(cTableName))
 
@@ -176,7 +175,7 @@ func (pctl *PipelineCtl) TableDefaultEntryAdd(tableName string, entry *TableEntr
 //
 // @return 0 on success or the following error codes otherwise:
 // -EINVAL: Invalid argument.
-func (pctl *PipelineCtl) TableEntryDelete(tableName string, entry *TableEntry) error {
+func (pctl *Ctl) TableEntryDelete(tableName string, entry *TableEntry) error {
 	cTableName := C.CString(tableName)
 	defer C.free(unsafe.Pointer(cTableName))
 
@@ -197,7 +196,7 @@ func (pctl *PipelineCtl) TableEntryDelete(tableName string, entry *TableEntry) e
 // @param line String containing the learner table default entry.
 //
 // @return
-func (pctl *PipelineCtl) LearnerDefaultEntryRead(learnerName string, line string) *TableEntry {
+func (pctl *Ctl) LearnerDefaultEntryRead(learnerName string, line string) *TableEntry {
 	var isBlankOrComment C.int
 
 	cLearnerName := C.CString(learnerName)
@@ -222,7 +221,7 @@ func (pctl *PipelineCtl) LearnerDefaultEntryRead(learnerName string, line string
 //
 // @return 0 on success or the following error codes otherwise:
 // -EINVAL: Invalid argument.
-func (pctl *PipelineCtl) LearnerDefaultEntryAdd(learnerName string, entry *TableEntry) error {
+func (pctl *Ctl) LearnerDefaultEntryAdd(learnerName string, entry *TableEntry) error {
 	cLearnerName := C.CString(learnerName)
 	defer C.free(unsafe.Pointer(cLearnerName))
 

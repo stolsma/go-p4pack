@@ -11,17 +11,17 @@ import "C"
 import (
 	"errors"
 
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ring"
 )
 
 // RingStore represents a store of created Tap records
-type RingStore map[string]*dpdkswx.Ring
+type RingStore map[string]*ring.Ring
 
 func CreateRingStore() RingStore {
 	return make(RingStore)
 }
 
-func (rs RingStore) Find(name string) *dpdkswx.Ring {
+func (rs RingStore) Find(name string) *ring.Ring {
 	if name == "" {
 		return nil
 	}
@@ -30,8 +30,8 @@ func (rs RingStore) Find(name string) *dpdkswx.Ring {
 }
 
 // Create Ring interface. Returns a pointer to a Ring structure or nil with error.
-func (rs RingStore) Create(name string, size uint32, numaNode uint32) (*dpdkswx.Ring, error) {
-	var ring dpdkswx.Ring
+func (rs RingStore) Create(name string, size uint, numaNode uint32) (*ring.Ring, error) {
+	var r ring.Ring
 
 	if rs.Find(name) != nil {
 		return nil, errors.New("ring interface exists")
@@ -43,17 +43,17 @@ func (rs RingStore) Create(name string, size uint32, numaNode uint32) (*dpdkswx.
 	}
 
 	// initialize
-	ring.Init(name, size, numaNode, clean)
+	r.Init(name, size, numaNode, clean)
 
 	// add node to list
-	rs[name] = &ring
+	rs[name] = &r
 
-	return &ring, nil
+	return &r, nil
 }
 
 // Delete all Ring interfaces
 func (rs RingStore) Clear() {
-	for _, ring := range rs {
-		ring.Free()
+	for _, r := range rs {
+		r.Free()
 	}
 }

@@ -12,7 +12,7 @@ type PipelineConfig struct {
 	Name        string
 	NumaNode    int
 	Spec        string
-	ThreadID    uint32
+	ThreadID    uint
 	Mempools    []MempoolConfig
 	OutputPorts []OutPortConfig
 	InputPorts  []InPortConfig
@@ -41,7 +41,7 @@ func (pc *PipelineConfig) GetSpec() string {
 	return pc.Spec
 }
 
-func (pc *PipelineConfig) GetThreadID() uint32 {
+func (pc *PipelineConfig) GetThreadID() uint {
 	return pc.ThreadID
 }
 

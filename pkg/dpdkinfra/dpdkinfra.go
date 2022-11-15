@@ -6,9 +6,11 @@ package dpdkinfra
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
 )
 
 type DpdkInfra struct {
@@ -36,24 +38,13 @@ func CreateAndInit(dpdkArgs []string) (*DpdkInfra, error) {
 }
 
 func (di *DpdkInfra) Init(dpdkArgs []string) error {
+	// initialize dpdkswx
 	di.args = dpdkArgs
-	numArgs, status := dpdkswx.EalInit(dpdkArgs)
-	di.numArgs = numArgs
-	if status != nil {
-		return status
+	nArgs, err := dpdkswx.Runtime.Start(dpdkArgs)
+	di.numArgs = nArgs
+	if err != nil {
+		return err
 	}
-
-	status = dpdkswx.ThreadInit()
-	if status != nil {
-		return status
-	}
-	log.Println("ThreadInit ok!")
-
-	status = dpdkswx.MainThreadInit()
-	if status != nil {
-		return status
-	}
-	log.Println("MainThreadInit ok!")
 
 	// create stores
 	di.mbufStore = CreatePktmbufStore()
@@ -66,37 +57,21 @@ func (di *DpdkInfra) Init(dpdkArgs []string) error {
 }
 
 func (di *DpdkInfra) Cleanup() {
-	/*
-		// thread 1 pipeline PIPELINE0 disable
-		num, err = dpdkinfra.PipelineDisable(1, "PIPELINE0")
-		if num != 0 {
-			log.Fatalln("PipelineDisable num:", num)
-		}
-		if err != nil {
-			log.Fatalln("PipelineDisable err:", err)
-		}
-		log.Println("Pipeline Disabled!")
-	*/
+	// TODO remove all pipelines from swx runtime instance and stop the instance!
 
 	// empty & remove stores
 	di.pipelineStore.Clear()
 	di.tapStore.Clear()
+	di.ringStore.Clear()
+	di.ethdevStore.Clear()
 	di.mbufStore.Clear()
-
-	// TODO: cleanup EAL memory etc...
-
-	/*
-		err = dpdkinfra.EalCleanup()
-		if err != nil {
-			log.Fatalln("EAL cleanup err:", err)
-		}
-		log.Println("EAL cleanup ready!")
-	*/
 }
 
-func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint32, cacheSize uint32, cpuID int) error {
-	_, err := di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuID)
-	return err
+func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint32, cacheSize uint32, cpuID int) (err error) {
+	err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
+		_, err = di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuID)
+	})
+	return
 }
 
 func (di *DpdkInfra) TapCreate(name string) error {
@@ -113,19 +88,21 @@ func (di *DpdkInfra) TapList(name string) (string, error) {
 	return result, err
 }
 
-func (di *DpdkInfra) RingCreate(name string, size uint32, numaNode uint32) error {
+func (di *DpdkInfra) RingCreate(name string, size uint, numaNode uint32) error {
 	_, err := di.ringStore.Create(name, size, numaNode)
 	return err
 }
 
-func (di *DpdkInfra) EthdevCreate(name string, params *dpdkswx.EthdevParams) error {
+func (di *DpdkInfra) EthdevCreate(name string, params *ethdev.Params) error {
 	_, err := di.ethdevStore.Create(name, params)
 	return err
 }
 
-func (di *DpdkInfra) PipelineCreate(plName string, numaNode int) error {
-	_, err := di.pipelineStore.Create(plName, numaNode)
-	return err
+func (di *DpdkInfra) PipelineCreate(plName string, numaNode int) (err error) {
+	err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
+		_, err = di.pipelineStore.Create(plName, numaNode)
+	})
+	return
 }
 
 func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName string, mName string, mtu int, bsz int) error {
@@ -175,21 +152,17 @@ func (di *DpdkInfra) PipelineBuild(plName string, specfile string) error {
 }
 
 func (di *DpdkInfra) PipelineCommit(plName string) error {
-	pipeline := di.pipelineStore.Find(plName)
-	if pipeline == nil {
+	pl := di.pipelineStore.Find(plName)
+	if pl == nil {
 		return errors.New("pipeline doesn't exists")
 	}
 
-	return pipeline.Commit(dpdkswx.CommitAbortOnFail)
+	return pl.Commit(pipeline.CommitAbortOnFail)
 }
 
-func (di *DpdkInfra) PipelineEnable(plName string, threadID uint32) error {
-	pipeline := di.pipelineStore.Find(plName)
-	if pipeline == nil {
-		return errors.New("pipeline doesn't exists")
-	}
-
-	return pipeline.Enable(threadID)
+func (di *DpdkInfra) PipelineEnable(plName string, threadID uint) error {
+	pl := di.pipelineStore.Find(plName)
+	return dpdkswx.Runtime.EnablePipeline(pl, threadID)
 }
 
 func (di *DpdkInfra) TableEntryAdd(plName string, tableName string, line string) error {
@@ -207,6 +180,7 @@ func (di *DpdkInfra) TableEntryAdd(plName string, tableName string, line string)
 	return err
 }
 
+/*
 func (di *DpdkInfra) PrintThreadStatus() {
 	var i uint
 	for i = 0; i < 16; i++ {
@@ -217,22 +191,23 @@ func (di *DpdkInfra) PrintThreadStatus() {
 		}
 	}
 }
+*/
 
 // get pipeline info. If plName is filled then that specific pipeline info is retrieved else the info
 // of all pipelines is retrieved
 func (di *DpdkInfra) PipelineInfo(plName string) (string, error) {
 	if plName != "" {
-		pipeline := di.pipelineStore.Find(plName)
-		if pipeline == nil {
+		pl := di.pipelineStore.Find(plName)
+		if pl == nil {
 			return "", errors.New("pipeline doesn't exists")
 		}
-		return pipeline.Info(), nil
+		return pl.Info(), nil
 	}
 
 	result := ""
-	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pipeline.GetName())
-		result += pipeline.Info()
+	err := di.pipelineStore.Iterate(func(key string, pl *pipeline.Pipeline) error {
+		result += fmt.Sprintf("%s: \n", pl.GetName())
+		result += pl.Info()
 		return nil
 	})
 
@@ -251,9 +226,9 @@ func (di *DpdkInfra) PipelineStats(plName string) (string, error) {
 	}
 
 	result := ""
-	err := di.pipelineStore.Iterate(func(key string, pipeline *dpdkswx.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pipeline.GetName())
-		result += pipeline.Stats()
+	err := di.pipelineStore.Iterate(func(key string, pl *pipeline.Pipeline) error {
+		result += fmt.Sprintf("%s: \n", pl.GetName())
+		result += pl.Stats()
 		return nil
 	})
 
