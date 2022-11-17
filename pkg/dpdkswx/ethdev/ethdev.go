@@ -19,7 +19,7 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 	lled "github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev/ethdev"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
+	"github.com/yerden/go-dpdk/mempool"
 )
 
 const RetaConfSize = (C.RTE_ETH_RSS_RETA_SIZE_512 / C.RTE_ETH_RETA_GROUP_SIZE)
@@ -41,7 +41,7 @@ type Params struct {
 		mtu       uint32
 		nQueues   uint16
 		queueSize uint32
-		mempool   *pktmbuf.Pktmbuf
+		mempool   *mempool.Mempool
 		rss       *ParamsRss
 	}
 
@@ -68,7 +68,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	var portInfo lled.DevInfo
 	var portID lled.Port
 	var rss *ParamsRss // *C.struct_link_params_rss
-	var mp *pktmbuf.Pktmbuf
+	var mp *mempool.Mempool
 	var status C.int
 	var res error
 
@@ -185,7 +185,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 			(C.ushort)(params.rx.queueSize),
 			(C.uint)(cpuID),
 			nil,
-			(*C.struct_rte_mempool)(mp.Mempool()),
+			(*C.struct_rte_mempool)(unsafe.Pointer(mp)),
 		)
 		if status < 0 {
 			return common.Err(status)

@@ -64,7 +64,7 @@ import (
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
+	"github.com/yerden/go-dpdk/mempool"
 )
 
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
@@ -156,7 +156,7 @@ func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Poin
 }
 
 // pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
-func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *pktmbuf.Pktmbuf, mtu int, bsz int) error {
+func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *mempool.Mempool, mtu int, bsz int) error {
 	var params C.struct_rte_swx_port_fd_reader_params
 
 	if tap == 0 || pm == nil {
@@ -164,7 +164,7 @@ func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *pktmbuf.Pktmbuf, mt
 	}
 
 	params.fd = C.int(tap)
-	params.mempool = (*C.struct_rte_mempool)(pm.Mempool())
+	params.mempool = (*C.struct_rte_mempool)(unsafe.Pointer(pm))
 	params.mtu = (C.uint)(mtu)
 	params.burst_size = (C.uint)(bsz)
 

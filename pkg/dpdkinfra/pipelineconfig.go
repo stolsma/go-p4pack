@@ -6,6 +6,8 @@ package dpdkinfra
 import (
 	"log"
 	"path"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
 type PipelineConfig struct {
@@ -13,7 +15,7 @@ type PipelineConfig struct {
 	NumaNode    int
 	Spec        string
 	ThreadID    uint
-	Mempools    []MempoolConfig
+	PktMbufs    []PktMbufConfig
 	OutputPorts []OutPortConfig
 	InputPorts  []InPortConfig
 	Start       StartConfig
@@ -45,37 +47,40 @@ func (pc *PipelineConfig) GetThreadID() uint {
 	return pc.ThreadID
 }
 
-type MempoolConfig struct {
+type PktMbufConfig struct {
 	Name       string
-	BufferSize uint32
+	BufferSize uint
 	PoolSize   uint32
 	CacheSize  uint32
 	CPUID      int
 }
 
-func (mpc *MempoolConfig) GetName() string {
+func (mpc *PktMbufConfig) GetName() string {
 	return mpc.Name
 }
 
-func (mpc *MempoolConfig) GetBufferSize() uint32 {
+func (mpc *PktMbufConfig) GetBufferSize() uint {
+	if mpc.BufferSize == 0 {
+		mpc.BufferSize = pktmbuf.RteMbufDefaultBufSize
+	}
 	return mpc.BufferSize
 }
 
-func (mpc *MempoolConfig) GetPoolSize() uint32 {
+func (mpc *PktMbufConfig) GetPoolSize() uint32 {
 	return mpc.PoolSize
 }
 
-func (mpc *MempoolConfig) GetCacheSize() uint32 {
+func (mpc *PktMbufConfig) GetCacheSize() uint32 {
 	return mpc.CacheSize
 }
 
-func (mpc *MempoolConfig) GetCPUID() int {
+func (mpc *PktMbufConfig) GetCPUID() int {
 	return mpc.CPUID
 }
 
 type InPortConfig struct {
 	IfaceName string
-	Mempool   string
+	PktMbuf   string
 	MTU       int
 	Bsz       int
 }
@@ -84,8 +89,8 @@ func (pc *InPortConfig) GetIfaceName() string {
 	return pc.IfaceName
 }
 
-func (pc *InPortConfig) GetMempool() string {
-	return pc.Mempool
+func (pc *InPortConfig) GetPktMbuf() string {
+	return pc.PktMbuf
 }
 
 func (pc *InPortConfig) GetMTU() int {
@@ -128,11 +133,10 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 	}
 	log.Printf("%s created!", pipeName)
 
-	// Create mempools
-	// mempool MEMPOOL0 buffer 2304 pool 32K cache 256 cpu 0
-	for _, m := range pipelineConfig.Mempools {
+	// Create PktMbuf memory pool
+	for _, m := range pipelineConfig.PktMbufs {
 		name := m.GetName()
-		err := dpdki.MempoolCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
+		err := dpdki.PktMbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
 		if err != nil {
 			log.Fatalf("Pktmbuf Mempool %s create err: %d", name, err)
 		}
@@ -143,7 +147,7 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 	// pipeline PIPELINE0 port in <portindex> tap <tapname> mempool MEMPOOL0 mtu 1500 bsz 1
 	for i, t := range pipelineConfig.InputPorts {
 		name := t.GetIfaceName()
-		err = dpdki.PipelineAddInputPortTap(pipeName, i, name, t.GetMempool(), t.GetMTU(), t.GetBsz())
+		err = dpdki.PipelineAddInputPortTap(pipeName, i, name, t.GetPktMbuf(), t.GetMTU(), t.GetBsz())
 		if err != nil {
 			log.Fatalf("AddInPortTap %s:%s err: %d", pipeName, name, err)
 		}

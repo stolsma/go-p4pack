@@ -17,31 +17,31 @@
     "NumaNode": 0,
     "ThreadID": 1,
     "Spec": "./default.spec",
-    "Mempools": [{
+    "PktMbufs": [{
       "Name": "MEMPOOL0",
-      "BufferSize": 2304,
+      "BufferSize": 2176,
       "PoolSize": 32768,
       "CacheSize": 256,
       "CPUID": 0
     }],
     "InputPorts": [{
       "IfaceName": "sw1",
-      "Mempool": "MEMPOOL0",
+      "PktMbuf": "MEMPOOL0",
       "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw2",
-      "Mempool": "MEMPOOL0",
+      "PktMbuf": "MEMPOOL0",
       "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw3",
-      "Mempool": "MEMPOOL0",
+      "PktMbuf": "MEMPOOL0",
       "MTU": 1514,
       "Bsz": 1
     },{
       "IfaceName": "sw4",
-      "Mempool": "MEMPOOL0",
+      "PktMbuf": "MEMPOOL0",
       "MTU": 1515,
       "Bsz": 1
     }],

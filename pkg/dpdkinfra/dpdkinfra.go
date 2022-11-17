@@ -67,11 +67,9 @@ func (di *DpdkInfra) Cleanup() {
 	di.mbufStore.Clear()
 }
 
-func (di *DpdkInfra) MempoolCreate(name string, bufferSize uint32, poolSize uint32, cacheSize uint32, cpuID int) (err error) {
-	err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
-		_, err = di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuID)
-	})
-	return
+func (di *DpdkInfra) PktMbufCreate(name string, bufferSize uint, poolSize uint32, cacheSize uint32, cpuID int) (err error) {
+	_, err = di.mbufStore.Create(name, bufferSize, poolSize, cacheSize, cpuID)
+	return err
 }
 
 func (di *DpdkInfra) TapCreate(name string) error {
@@ -123,7 +121,7 @@ func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName st
 
 	pipeline.PortIsValid()
 
-	return pipeline.AddInputPortTap(portID, int(tap.Fd()), pktmbuf, mtu, bsz)
+	return pipeline.AddInputPortTap(portID, int(tap.Fd()), pktmbuf.Mempool(), mtu, bsz)
 }
 
 func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName string, bsz int) error {
