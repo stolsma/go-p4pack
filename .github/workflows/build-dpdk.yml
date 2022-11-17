@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'build/dpdk/**'
+  workflow_dispatch:
 
 concurrency:
   # if workflow for PR or push is already running stop it, and start new one
