@@ -5,7 +5,7 @@ package main
 
 import (
 	"github.com/spf13/cobra"
-	dpdkinfracli "github.com/stolsma/go-p4pack/pkg/dpdkicli"
+	dpdkinfracli "github.com/stolsma/go-p4pack/pkg/dpdkinfra/cli"
 	flowtestcli "github.com/stolsma/go-p4pack/pkg/flowtest/cli"
 	loggingcli "github.com/stolsma/go-p4pack/pkg/logging/cli"
 )

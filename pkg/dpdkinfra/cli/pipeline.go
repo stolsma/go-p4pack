@@ -1,4 +1,4 @@
-package dpdkicli
+package cli
 
 import (
 	"strings"
