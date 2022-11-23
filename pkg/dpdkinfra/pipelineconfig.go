@@ -10,15 +10,15 @@ import (
 )
 
 type PipelineConfig struct {
-	Name        string
-	NumaNode    int
-	BasePath    string
-	Spec        string
-	ThreadID    uint
-	PktMbufs    []*PktMbufConfig
-	OutputPorts []*OutPortConfig
-	InputPorts  []*InPortConfig
-	Start       *StartConfig
+	Name        string           `json:"name"`
+	NumaNode    int              `json:"numanode"`
+	BasePath    string           `json:"basepath"`
+	Spec        string           `json:"spec"`
+	ThreadID    uint             `json:"threadid"`
+	PktMbufs    []*PktMbufConfig `json:"pktmbufs"`
+	OutputPorts []*OutPortConfig `json:"outputports"`
+	InputPorts  []*InPortConfig  `json:"inputports"`
+	Start       *StartConfig     `json:"start"`
 }
 
 func (pc *PipelineConfig) GetName() string {
@@ -50,11 +50,11 @@ func (pc *PipelineConfig) GetThreadID() uint {
 }
 
 type PktMbufConfig struct {
-	Name       string
-	BufferSize uint
-	PoolSize   uint32
-	CacheSize  uint32
-	CPUID      int
+	Name       string `json:"name"`
+	BufferSize uint   `json:"buffersize"`
+	PoolSize   uint32 `json:"poolsize"`
+	CacheSize  uint32 `json:"cachesize"`
+	CPUID      int    `json:"cpuid"`
 }
 
 func (mpc *PktMbufConfig) GetName() string {
@@ -81,10 +81,10 @@ func (mpc *PktMbufConfig) GetCPUID() int {
 }
 
 type InPortConfig struct {
-	IfaceName string
-	PktMbuf   string
-	MTU       int
-	Bsz       int
+	IfaceName string `json:"ifacename"`
+	PktMbuf   string `json:"pktmbuf"`
+	MTU       int    `json:"mtu"`
+	Bsz       int    `json:"bsz"`
 }
 
 func (pc *InPortConfig) GetIfaceName() string {
@@ -104,8 +104,8 @@ func (pc *InPortConfig) GetBsz() int {
 }
 
 type OutPortConfig struct {
-	IfaceName string
-	Bsz       int
+	IfaceName string `json:"ifacename"`
+	Bsz       int    `json:"bsz"`
 }
 
 func (pc *OutPortConfig) GetIfaceName() string {
@@ -117,12 +117,12 @@ func (pc *OutPortConfig) GetBsz() int {
 }
 
 type StartConfig struct {
-	Tables []TableConfig
+	Tables []TableConfig `json:"tables"`
 }
 
 type TableConfig struct {
-	Name string
-	Data []string
+	Name string   `json:"name"`
+	Data []string `json:"data"`
 }
 
 // Create pipelines through the DpdkInfra API

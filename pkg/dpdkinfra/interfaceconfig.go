@@ -8,8 +8,8 @@ import (
 )
 
 type InterfaceConfig struct {
-	Name string
-	Type string
+	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 func (i *InterfaceConfig) GetName() string {

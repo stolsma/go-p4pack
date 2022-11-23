@@ -16,10 +16,10 @@ import (
 
 type Config struct {
 	BasePath   string
-	Interfaces []*dpdkinfra.InterfaceConfig
-	Pipelines  []*dpdkinfra.PipelineConfig
-	FlowTest   *flowtest.Config
-	Logging    *logging.Config
+	Interfaces []*dpdkinfra.InterfaceConfig `json:"interfaces"`
+	Pipelines  []*dpdkinfra.PipelineConfig  `json:"pipelines"`
+	FlowTest   *flowtest.Config             `json:"flowtest"`
+	Logging    *logging.Config              `json:"logging"`
 }
 
 func (c *Config) LoadConfig(filename string) error {

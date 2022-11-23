@@ -1,67 +1,67 @@
 {
-  "Interfaces" : [{
-    "Name": "sw1",
-    "Type": "TAP"
+  "interfaces" : [{
+    "name": "sw1",
+    "type": "TAP"
   },{
-    "Name": "sw2",
-    "Type": "TAP"
+    "name": "sw2",
+    "type": "TAP"
   },{
-    "Name": "sw3",
-    "Type": "TAP"
+    "name": "sw3",
+    "type": "TAP"
   },{
-    "Name": "sw4",
-    "Type": "TAP"
+    "name": "sw4",
+    "type": "TAP"
   }],
-  "Pipelines" :[{
-    "Name": "PIPELINE0",
-    "NumaNode": 0,
-    "ThreadID": 1,
-    "Spec": "./default.spec",
-    "PktMbufs": [{
-      "Name": "MEMPOOL0",
-      "BufferSize": 2176,
-      "PoolSize": 32768,
-      "CacheSize": 256,
-      "CPUID": 0
+  "pipelines" :[{
+    "name": "PIPELINE0",
+    "numanode": 0,
+    "threadid": 1,
+    "spec": "./default.spec",
+    "pktmbufs": [{
+      "name": "MEMPOOL0",
+      "buffersize": 2176,
+      "poolsize": 32768,
+      "cachesize": 256,
+      "cpuid": 0
     }],
-    "InputPorts": [{
-      "IfaceName": "sw1",
-      "PktMbuf": "MEMPOOL0",
-      "MTU": 1514,
-      "Bsz": 1
+    "inputports": [{
+      "ifacename": "sw1",
+      "pktmbuf": "MEMPOOL0",
+      "mtu": 1514,
+      "bsz": 1
     },{
-      "IfaceName": "sw2",
-      "PktMbuf": "MEMPOOL0",
-      "MTU": 1514,
-      "Bsz": 1
+      "ifacename": "sw2",
+      "pktmbuf": "MEMPOOL0",
+      "mtu": 1514,
+      "bsz": 1
     },{
-      "IfaceName": "sw3",
-      "PktMbuf": "MEMPOOL0",
-      "MTU": 1514,
-      "Bsz": 1
+      "ifacename": "sw3",
+      "pktmbuf": "MEMPOOL0",
+      "mtu": 1514,
+      "bsz": 1
     },{
-      "IfaceName": "sw4",
-      "PktMbuf": "MEMPOOL0",
-      "MTU": 1515,
-      "Bsz": 1
+      "ifacename": "sw4",
+      "pktmbuf": "MEMPOOL0",
+      "mtu": 1515,
+      "bsz": 1
     }],
-    "OutputPorts": [{
-      "IfaceName": "sw1",
-      "Bsz": 1
+    "outputports": [{
+      "ifacename": "sw1",
+      "bsz": 1
     },{
-      "IfaceName": "sw2",
-      "Bsz": 1
+      "ifacename": "sw2",
+      "bsz": 1
     },{
-      "IfaceName": "sw3",
-      "Bsz": 1
+      "ifacename": "sw3",
+      "bsz": 1
     },{
-      "IfaceName": "sw4",
-      "Bsz": 1
+      "ifacename": "sw4",
+      "bsz": 1
     }],
-    "Start": {
-      "Tables": [{
-        "Name": "ipv4_host",
-        "Data": [
+    "start": {
+      "tables": [{
+        "name": "ipv4_host",
+        "data": [
           "match 0xc0a8de01 action send port 0",
           "match 0xc0a8de02 action send port 1",
           "match 0xc0a8de03 action send port 2",
@@ -70,37 +70,37 @@
       }]
     }
   }],
-  "FlowTest" :{
-    "Interfaces" : [{
-      "Name": "sw1",
-      "Mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
-      "IP": ["192", "168", "222", "1"]
+  "flowtest" :{
+    "interfaces" : [{
+      "name": "sw1",
+      "mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
+      "ip": ["192", "168", "222", "1"]
     },{
-      "Name": "sw2",
-      "Mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x02"],
-      "IP": ["192", "168", "222", "2"]
+      "name": "sw2",
+      "mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x02"],
+      "ip": ["192", "168", "222", "2"]
     },{
-      "Name": "sw3",
-      "Mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x03"],
-      "IP": ["192", "168", "222", "3"]
+      "name": "sw3",
+      "mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x03"],
+      "ip": ["192", "168", "222", "3"]
     },{
-      "Name": "sw4",
-      "Mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x04"],
-      "IP": ["192", "168", "222", "4"]
+      "name": "sw4",
+      "mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x04"],
+      "ip": ["192", "168", "222", "4"]
     }],
-    "FlowSets": [{
-      "Name" : "Check_all_relations",
-      "Flows": [{
-        "Source": {
-          "Interface": "sw1"
+    "flowsets": [{
+      "name" : "Check_all_relations",
+      "flows": [{
+        "source": {
+          "interface": "sw1"
         },
-        "Destination": {
-          "Interface": "sw2"
+        "destination": {
+          "interface": "sw2"
         },
-        "Send": {
-          "Layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
+        "send": {
+          "layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
             "flags_frag_offset", "ttl", "protocol", "hdr_checksum", "src_addr", "dst_addr", "payload"],
-          "Fields": {
+          "fields": {
             "dmac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x02"],
             "smac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
             "ethertype": ["0x08","0x00"],
@@ -124,10 +124,10 @@
             "0x30", "0x31", "0x32", "0x33", "0x34", "0x35", "0x36", "0x37"]
           }
         },
-        "Receive": {
-          "Layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
+        "receive": {
+          "layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
             "flags_frag_offset", "ttl", "protocol", "hdr_checksum", "src_addr", "dst_addr", "payload"],
-          "Fields": {
+          "fields": {
             "dmac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x02"],
             "smac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
             "ethertype": ["0x08","0x00"],
@@ -151,18 +151,18 @@
             "0x30", "0x31", "0x32", "0x33", "0x34", "0x35", "0x36", "0x37"]
           }
         },
-        "Interval": 1000
+        "interval": 1000
         },{
-          "Source": {
-            "Interface": "sw3"
+          "source": {
+            "interface": "sw3"
           },
-          "Destination": {
-            "Interface": "sw1"
+          "destination": {
+            "interface": "sw1"
           },
-          "Send": {
-            "Layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
+          "send": {
+            "layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
               "flags_frag_offset", "ttl", "protocol", "hdr_checksum", "src_addr", "dst_addr", "payload"],
-            "Fields": {
+            "fields": {
               "dmac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
               "smac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x03"],
               "ethertype": ["0x08","0x00"],
@@ -186,10 +186,10 @@
               "0x30", "0x31", "0x32", "0x33", "0x34", "0x35", "0x36", "0x37"]
             }
           },
-          "Receive": {
-            "Layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
+          "reiceive": {
+            "layout": ["dmac", "smac", "ethertype", "version_ihl", "diffserv", "total_len", "identification", 
               "flags_frag_offset", "ttl", "protocol", "hdr_checksum", "src_addr", "dst_addr", "payload"],
-            "Fields": {
+            "fields": {
               "dmac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],
               "smac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x03"],
               "ethertype": ["0x08","0x00"],
@@ -213,11 +213,11 @@
               "0x30", "0x31", "0x32", "0x33", "0x34", "0x35", "0x36", "0x37"]
             }
           },
-          "Interval": 1000
+          "interval": 1000
       }]
     }]
   },
-  "Logging": {
+  "logging": {
     "loggers": {
       "root": {
         "level": "info",

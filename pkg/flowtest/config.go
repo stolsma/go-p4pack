@@ -11,14 +11,14 @@ import (
 )
 
 type Config struct {
-	Interfaces []InterfaceConfig
-	FlowSets   []FlowSetConfig
+	Interfaces []InterfaceConfig `json:"interfaces"`
+	FlowSets   []FlowSetConfig   `json:"flowsets"`
 }
 
 type InterfaceConfig struct {
-	Name string
-	MAC  HexArray
-	IP   HexArray
+	Name string   `json:"name"`
+	MAC  HexArray `json:"mac"`
+	IP   HexArray `json:"ip"`
 }
 
 func (i *InterfaceConfig) GetName() string {
@@ -34,8 +34,8 @@ func (i *InterfaceConfig) GetIP() HexArray {
 }
 
 type FlowSetConfig struct {
-	Name  string
-	Flows []FlowConfig
+	Name  string       `json:"name"`
+	Flows []FlowConfig `json:"flows"`
 }
 
 func (t *FlowSetConfig) GetName() string {
@@ -43,20 +43,20 @@ func (t *FlowSetConfig) GetName() string {
 }
 
 type FlowConfig struct {
-	Source      EndpointConfig
-	Destination EndpointConfig
-	Send        Packet
-	Receive     Packet
-	Interval    int
+	Source      EndpointConfig `json:"source"`
+	Destination EndpointConfig `json:"destination"`
+	Send        Packet         `json:"send"`
+	Receive     Packet         `json:"receive"`
+	Interval    int            `json:"interval"`
 }
 
 type EndpointConfig struct {
-	Interface string
+	Interface string `json:"interface"`
 }
 
 type Packet struct {
-	Layout []string
-	Fields map[string]HexArray
+	Layout []string            `json:"layout"`
+	Fields map[string]HexArray `json:"fields"`
 }
 
 // parses the given fields to an array of bytes by using the given fields and extra parameters
