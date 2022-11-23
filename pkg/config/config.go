@@ -11,12 +11,15 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/flowtest"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
 type Config struct {
-	Interfaces []dpdkinfra.InterfaceConfig
-	Pipelines  []dpdkinfra.PipelineConfig
-	FlowTest   flowtest.Config
+	BasePath   string
+	Interfaces []*dpdkinfra.InterfaceConfig
+	Pipelines  []*dpdkinfra.PipelineConfig
+	FlowTest   *flowtest.Config
+	Logging    *logging.Config
 }
 
 func (c *Config) LoadConfig(filename string) error {
@@ -29,10 +32,14 @@ func (c *Config) LoadConfig(filename string) error {
 		return fmt.Errorf("JSON unmarshaling failed: %s", err)
 	}
 
-	path := filepath.Dir(filename)
-	dpdkinfra.PathConfig(path, &c.Pipelines)
+	// save the basepath of the config file read
+	c.BasePath = filepath.Dir(filename)
 
 	return nil
+}
+
+func (c *Config) GetBasePath() string {
+	return c.BasePath
 }
 
 func CreateAndLoad(filepath string) (*Config, error) {

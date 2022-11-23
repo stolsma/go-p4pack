@@ -29,7 +29,7 @@ func initPipeline(parent *cobra.Command) {
 		Aliases: []string{"i"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			dpdki := getDpdki(cmd)
+			dpdki := dpdkinfra.Get()
 			plName := ""
 
 			// check specific pipeline or all
@@ -54,7 +54,7 @@ func initPipeline(parent *cobra.Command) {
 		Aliases: []string{"st"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			dpdki := getDpdki(cmd)
+			dpdki := dpdkinfra.Get()
 			ctx, cancelFn := context.WithCancel(cmd.Context())
 			plName := ""
 

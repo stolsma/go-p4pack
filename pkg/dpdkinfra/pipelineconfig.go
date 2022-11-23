@@ -1,10 +1,9 @@
-// Copyright 2022 - Sander Tolsma. All rights reserved
+// SPDX-FileCopyrightText: 2022-present Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
 package dpdkinfra
 
 import (
-	"log"
 	"path"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
@@ -13,22 +12,13 @@ import (
 type PipelineConfig struct {
 	Name        string
 	NumaNode    int
+	BasePath    string
 	Spec        string
 	ThreadID    uint
-	PktMbufs    []PktMbufConfig
-	OutputPorts []OutPortConfig
-	InputPorts  []InPortConfig
-	Start       StartConfig
-}
-
-func PathConfig(base string, pipeline *[]PipelineConfig) {
-	pipes := *pipeline
-	for i := range pipes {
-		if pipes[i].Spec == "" {
-			log.Fatalf("the configuration of Pipeline %s doesn't have Spec defined", pipes[i].GetName())
-		}
-		pipes[i].Spec = path.Join(base, pipes[i].Spec)
-	}
+	PktMbufs    []*PktMbufConfig
+	OutputPorts []*OutPortConfig
+	InputPorts  []*InPortConfig
+	Start       *StartConfig
 }
 
 func (pc *PipelineConfig) GetName() string {
@@ -39,8 +29,20 @@ func (pc *PipelineConfig) GetNumaNode() int {
 	return pc.NumaNode
 }
 
+func (pc *PipelineConfig) SetBasePath(basePath string) bool {
+	if pc.BasePath != "" {
+		return false
+	}
+	pc.BasePath = basePath
+	return true
+}
+
+func (pc *PipelineConfig) GetBasePath() string {
+	return pc.BasePath
+}
+
 func (pc *PipelineConfig) GetSpec() string {
-	return pc.Spec
+	return path.Join(pc.BasePath, pc.Spec)
 }
 
 func (pc *PipelineConfig) GetThreadID() uint {
@@ -124,14 +126,14 @@ type TableConfig struct {
 }
 
 // Create pipelines through the DpdkInfra API
-func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
+func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
 	// Create pipeline
 	pipeName := pipelineConfig.GetName()
 	err := dpdki.PipelineCreate(pipeName, pipelineConfig.GetNumaNode())
 	if err != nil {
 		log.Fatalf("%s create err: %d", pipeName, err)
 	}
-	log.Printf("%s created!", pipeName)
+	log.Infof("%s created!", pipeName)
 
 	// Create PktMbuf memory pool
 	for _, m := range pipelineConfig.PktMbufs {
@@ -140,7 +142,7 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 		if err != nil {
 			log.Fatalf("Pktmbuf Mempool %s create err: %d", name, err)
 		}
-		log.Printf("Pktmbuf Mempool %s ready!", name)
+		log.Infof("Pktmbuf Mempool %s ready!", name)
 	}
 
 	// Add input ports to pipeline
@@ -151,7 +153,7 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 		if err != nil {
 			log.Fatalf("AddInPortTap %s:%s err: %d", pipeName, name, err)
 		}
-		log.Printf("AddInPortTap %s:%s ready!", pipeName, name)
+		log.Infof("AddInPortTap %s:%s ready!", pipeName, name)
 	}
 
 	// Add output ports to pipeline
@@ -162,7 +164,7 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 		if err != nil {
 			log.Fatalf("AddOutPortTap %s:%s err: %d", pipeName, name, err)
 		}
-		log.Printf("AddOutPortTap %s:%s ready!", pipeName, name)
+		log.Infof("AddOutPortTap %s:%s ready!", pipeName, name)
 	}
 
 	// Build the pipeline program
@@ -170,14 +172,14 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 	if err != nil {
 		log.Fatalf("Pipelinebuild %s specfile: %s err: %d", pipeName, pipelineConfig.GetSpec(), err)
 	}
-	log.Printf("Pipeline %s Build!", pipeName)
+	log.Infof("Pipeline %s Build!", pipeName)
 
 	// Commit program to pipeline
 	err = dpdki.PipelineCommit(pipeName)
 	if err != nil {
 		log.Fatalf("Pipelinecommit %s err: %d", pipeName, err)
 	}
-	log.Printf("Pipeline %s commited!", pipeName)
+	log.Infof("Pipeline %s commited!", pipeName)
 
 	// And run pipeline
 	// thread 1 pipeline PIPELINE0 enable
@@ -185,7 +187,7 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 	if err != nil {
 		log.Fatalf("PipelineEnable %s err: %d", pipeName, err)
 	}
-	log.Printf("Pipeline %s enabled!", pipeName)
+	log.Infof("Pipeline %s enabled!", pipeName)
 
 	// Add Table startconfig
 	for _, table := range pipelineConfig.Start.Tables {
@@ -199,5 +201,5 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig PipelineConfig) {
 	if err != nil {
 		log.Fatalf("Table commit %s err: %d", pipeName, err)
 	}
-	log.Printf("Table config on pipeline %s commited!", pipeName)
+	log.Infof("Table config on pipeline %s commited!", pipeName)
 }

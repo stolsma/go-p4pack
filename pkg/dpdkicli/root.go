@@ -1,40 +1,26 @@
 package dpdkicli
 
 import (
-	"io"
-
 	"github.com/spf13/cobra"
-	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
-func getDpdki(cmd *cobra.Command) *dpdkinfra.DpdkInfra {
-	return cmd.Context().Value("dpdki").(*dpdkinfra.DpdkInfra)
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkinfra/cli", func(logger logging.Logger) {
+		log = logger
+	})
 }
 
-// Create CLI handler
-func Create(rw io.ReadWriter) *cobra.Command {
-	root := &cobra.Command{
-		Use:   "",
-		Short: "DPDKInfra is a Go/DPDK SWX test program",
-		Long:  `Testing Go with DPDK - SWX. Complete documentation is available at https://github.com/stolsma/go-p4pack/`,
-		Run: func(cmd *cobra.Command, args []string) {
-		},
-	}
-
-	// no completion create command
-	root.CompletionOptions.DisableDefaultCmd = true
-
-	// set in and output streams
-	root.SetOut(rw)
-	root.SetErr(rw)
-	root.SetIn(rw)
+// GetCommand returns the root command after adding the dpdkinfra service commands
+func GetCommand(root *cobra.Command) *cobra.Command {
+	log.Info("Adding dpdkinfra cli")
 
 	// add all supported root commands
-	initVersion(root)
-	initExit(root)
 	initPipeline(root)
 	initMempool(root)
 	initInterface(root)
-
 	return root
 }

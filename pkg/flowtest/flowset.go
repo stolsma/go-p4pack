@@ -6,7 +6,6 @@ package flowtest
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"time"
 
@@ -51,13 +50,13 @@ func (i *Intf) Open() {
 
 	c, err := packet.Listen(i.intf, packet.Raw, unix.ETH_P_ALL, nil)
 	if err != nil {
-		log.Printf("failed to open RAW socket: %v", err)
+		log.Errorf("failed to open RAW socket: %v", err)
 		return
 	}
 	c.SetPromiscuous(true)
 
 	i.conn = c
-	log.Printf("RAW socket opened on interface: %s", i.name)
+	log.Infof("RAW socket opened on interface: %s", i.name)
 }
 
 // close the raw socket if open on this interface
@@ -67,7 +66,7 @@ func (i *Intf) Close() {
 	}
 	i.conn.Close()
 	i.conn = nil
-	log.Printf("RAW socket closed on interface: %s", i.name)
+	log.Infof("RAW socket closed on interface: %s", i.name)
 }
 
 type FlowSet struct {
@@ -131,25 +130,25 @@ func receiveFlows(ctx context.Context, intf *Intf) {
 	for {
 		select {
 		case <-ctx.Done(): // Quit receive goroutine
-			log.Printf("Stopped checking interface %s", intf.name)
+			log.Infof("Stopped checking interface %s", intf.name)
 			return
 		default:
 			n, addr, err := intf.conn.ReadFrom(b)
 			if err != nil {
-				log.Printf("failed to receive message: %v", err)
+				log.Errorf("failed to receive message: %v", err)
 				break
 			}
 
 			// Unpack Ethernet frame into Go representation.
 			if err := (&f).UnmarshalBinary(b[:n]); err != nil {
-				log.Printf("failed to unmarshal ethernet frame: %v", err)
+				log.Errorf("failed to unmarshal ethernet frame: %v", err)
 				break
 			}
 
 			// TODO: Handle timecheck on received frame
 			// Display source of message and message itself.
 			// s := net.HardwareAddr(f.Payload[:6])
-			log.Printf("Packet received [%s %s] [%s %s]", intf.name, addr.String(), f.Source.String(), f.Destination.String())
+			log.Infof("Packet received [%s %s] [%s %s]", intf.name, addr.String(), f.Source.String(), f.Destination.String())
 		}
 	}
 }
@@ -158,7 +157,7 @@ func sendFlows(ctx context.Context, intf *Intf, flows *Flows) {
 	for {
 		select {
 		case <-ctx.Done(): // Quit send goroutine
-			log.Printf("Stopped sending flows on interface %s", intf.name)
+			log.Infof("Stopped sending flows on interface %s", intf.name)
 			return
 		default:
 			for _, f := range *flows {
@@ -173,11 +172,11 @@ func sendFlows(ctx context.Context, intf *Intf, flows *Flows) {
 				// Write the frame to the source network interface
 				addr := &packet.Addr{HardwareAddr: net.HardwareAddr(f.destMAC)}
 				if _, err := intf.conn.WriteTo(frame, addr); err != nil {
-					log.Printf("failed to write frame: %v", err)
+					log.Errorf("failed to write frame: %v", err)
 					return
 				}
 
-				log.Printf("Packet send     [%s %s]", intf.name, addr.String())
+				log.Infof("Packet send     [%s %s]", intf.name, addr.String())
 			}
 			time.Sleep(1 * time.Second)
 		}

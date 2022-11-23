@@ -8,7 +8,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"log"
 	"os"
 
 	"github.com/gliderlabs/ssh"
@@ -56,7 +55,7 @@ func (r *HostKeyResolver) createHostKeyFile() error {
 		return err
 	}
 	fingerprint := gossh.FingerprintSHA256(publicKey)
-	log.Printf("I: Generating host key with fingerprint %s to %s\n", fingerprint, r.hostKeyFile)
+	log.Infof("I: Generating host key with fingerprint %s to %s\n", fingerprint, r.hostKeyFile)
 	file, err := os.Create(r.hostKeyFile)
 	if err != nil {
 		return err

@@ -216,5 +216,34 @@
           "Interval": 1000
       }]
     }]
+  },
+  "Logging": {
+    "loggers": {
+      "root": {
+        "level": "info",
+        "output": {
+          "stdout": {
+            "sink": "stdout"
+          },
+          "file": {
+            "sink": "file"
+          }
+        }
+      }
+    },
+    "sinks": {
+      "stdout": {
+        "type": "stdout",
+        "encoding": "console",
+        "stdout": {}
+      },
+      "file": {
+        "type": "file",
+        "encoding": "json",	
+        "file": {
+          "path": "./test.log"
+        }
+      }
+    }
   }
 }

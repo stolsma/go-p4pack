@@ -5,7 +5,18 @@ package flowtest
 
 import (
 	"context"
+
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
+
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("flowtest", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 type Iface struct {
 	Name string
@@ -42,12 +53,12 @@ func Create() *FlowTest {
 	return t
 }
 
-func Init(ctx context.Context, config Config) (*FlowTest, error) {
+func Init(ctx context.Context, config *Config) (*FlowTest, error) {
 	t := Create()
 	return t, t.Init(ctx, config)
 }
 
-func (t *FlowTest) Init(ctx context.Context, config Config) error {
+func (t *FlowTest) Init(ctx context.Context, config *Config) error {
 	ctx, cancelFn := context.WithCancel(ctx)
 	t.ctx = ctx
 	t.cancelFn = cancelFn

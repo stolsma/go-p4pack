@@ -8,10 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
+
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("sshshell", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 // SshServer manages acceptance of and authenticating SSH connections and delegating input to a Handler for each
 // session instantiated by the given HandlerFactory.
@@ -55,14 +64,14 @@ func (s *SSHServer) Listen(ctx context.Context) error {
 	hostKeyResolver := NewHostKeyResolver(config)
 	bind := useOrDefaultString(config.Bind, DefaultBind)
 
-	log.Printf("Accepting SSH connections at %s", bind)
+	log.Infof("Accepting SSH connections at %s", bind)
 	return ssh.ListenAndServe(bind,
 		func(session ssh.Session) {
 			// the context for this session
 			sessionCtx, cancelSession := context.WithCancel(srvCtx)
 
 			sesName := fmt.Sprintf("%s@%s", session.User(), session.RemoteAddr())
-			log.Printf("I: New session for user=%s from=%s\n", session.User(), session.RemoteAddr())
+			log.Infof("I: New session for user=%s from=%s\n", session.User(), session.RemoteAddr())
 			shell := NewShell(session, sesName, config)
 			shell.SetPrompt("> ")
 

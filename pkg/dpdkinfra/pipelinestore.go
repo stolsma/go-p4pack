@@ -31,6 +31,7 @@ func (pls PipelineStore) Create(name string, numaNode int) (*pipeline.Pipeline, 
 
 	// create callback function called when record is freed
 	clean := func() {
+		log.Infof("Remove pipeline %s from store", name)
 		delete(pls, name)
 	}
 

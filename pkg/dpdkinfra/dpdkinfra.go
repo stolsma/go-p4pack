@@ -11,7 +11,18 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
+
+var dpdki *DpdkInfra
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkinfra", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 type DpdkInfra struct {
 	args          []string
@@ -23,29 +34,39 @@ type DpdkInfra struct {
 	pipelineStore PipelineStore
 }
 
-func Create() *DpdkInfra {
-	var di DpdkInfra
-	return &di
+// return a pointer to the (initialized) dpdkinfra singleton
+func Get() *DpdkInfra {
+	return dpdki
 }
 
+// create and initialize the dpdkinfra singleton, return the current dpdkinfra singleton with error if it already exists
 func CreateAndInit(dpdkArgs []string) (*DpdkInfra, error) {
-	di := Create()
-	err := di.Init(dpdkArgs)
+	if dpdki != nil {
+		return dpdki, errors.New("dpdki already initialized")
+	}
+
+	// create dpdkinfra singleton
+	dpdki = &DpdkInfra{}
+
+	// initialize the dpdkswx runtime
+	dpdki.args = dpdkArgs
+	nArgs, err := dpdkswx.Runtime.Start(dpdkArgs)
+	dpdki.numArgs = nArgs
 	if err != nil {
 		return nil, err
 	}
-	return di, nil
-}
 
-func (di *DpdkInfra) Init(dpdkArgs []string) error {
-	// initialize dpdkswx
-	di.args = dpdkArgs
-	nArgs, err := dpdkswx.Runtime.Start(dpdkArgs)
-	di.numArgs = nArgs
+	// initialize the dpdki singleton with non system intrusive parts
+	err = dpdki.Init()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	return dpdki, nil
+}
+
+// Initialize the non system intrusive dpdkinfra singleton parts (i.e. excluding the dpdkswx runtime parts!)
+func (di *DpdkInfra) Init() error {
 	// create stores
 	di.mbufStore = CreatePktmbufStore()
 	di.ethdevStore = CreateEthdevStore()
@@ -57,7 +78,7 @@ func (di *DpdkInfra) Init(dpdkArgs []string) error {
 }
 
 func (di *DpdkInfra) Cleanup() {
-	// TODO remove all pipelines from swx runtime instance and stop the instance!
+	// TODO remove all pipelines from swx runtime singleton and stop the dpdkinfra singleton subparts!
 
 	// empty & remove stores
 	di.pipelineStore.Clear()

@@ -2,6 +2,7 @@ package dpdkicli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
 func initTap(parent *cobra.Command) {
@@ -16,7 +17,7 @@ func initTap(parent *cobra.Command) {
 		Short: "Create a tap interface on the system",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			dpdki := getDpdki(cmd)
+			dpdki := dpdkinfra.Get()
 			err := dpdki.TapCreate(args[0])
 			if err != nil {
 				cmd.PrintErrf("TAP %s create err: %d\n", args[0], err)
@@ -31,7 +32,7 @@ func initTap(parent *cobra.Command) {
 		Aliases: []string{"sh"},
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			dpdki := getDpdki(cmd)
+			dpdki := dpdkinfra.Get()
 			t := ""
 			if len(args) == 1 {
 				t = args[0]

@@ -4,3 +4,4 @@ src/infra/build/
 hostkey
 __debug_bin
 src/infra/buildold/
+test.log

@@ -4,8 +4,6 @@
 package dpdkinfra
 
 import (
-	"log"
-
 	"github.com/vishvananda/netlink"
 )
 
@@ -23,7 +21,7 @@ func (i *InterfaceConfig) GetType() string {
 }
 
 // Create interfaces through the DpdkInfra API
-func (dpdki *DpdkInfra) InterfaceWithConfig(interfaceConfig InterfaceConfig) {
+func (dpdki *DpdkInfra) InterfaceWithConfig(interfaceConfig *InterfaceConfig) {
 	// Create (TAP) interface ports
 	// TODO: Implement other interface types!!
 	name := interfaceConfig.GetName()
@@ -34,7 +32,7 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(interfaceConfig InterfaceConfig) {
 
 	// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
 	dpdki.InterfaceUp(name)
-	log.Printf("TAP %s created!", name)
+	log.Infof("TAP %s created!", name)
 }
 
 // Create interfaces through the DpdkInfra API
@@ -53,7 +51,7 @@ func (dpdki *DpdkInfra) InterfaceUp(name string) error {
 		a := addr
 		err := netlink.AddrDel(localInterface, &a)
 		if err != nil {
-			log.Printf("Couldnt remove address %s from interface %s", addr.String(), name)
+			log.Warnf("Couldnt remove address %s from interface %s", addr.String(), name)
 		}
 	}
 

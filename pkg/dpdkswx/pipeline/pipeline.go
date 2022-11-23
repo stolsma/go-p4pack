@@ -64,8 +64,18 @@ import (
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 	"github.com/yerden/go-dpdk/mempool"
 )
+
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkswx/pipeline", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
 type Pipeline struct {
@@ -131,6 +141,7 @@ func (pl *Pipeline) GetTimerPeriodms() uint {
 // if set in structure.
 func (pl *Pipeline) Free() {
 	if pl.p != nil {
+		log.Infof("Freeing pipeline: %s", pl.GetName())
 		pl.Ctl.Free()
 		C.rte_swx_pipeline_free(pl.p)
 		pl.build = false
