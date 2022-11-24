@@ -75,8 +75,13 @@ echo ***************************************************************************
 
 # Build DPDK
 pushd "$DPDK_HOME" > /dev/null || exit
-  meson build
+  meson -Dcpu_instruction_set=generic build
   cd build || exit
+  sed -e 's/RTE_CPUFLAG_AVX512BW\,//' -i rte_build_config.h
+	sed -e 's/RTE_CPUFLAG_AVX512CD\,//' -i rte_build_config.h
+	sed -e 's/RTE_CPUFLAG_AVX512DQ\,//' -i rte_build_config.h
+	sed -e 's/RTE_CPUFLAG_AVX512F\,//' -i rte_build_config.h
+	sed -e 's/RTE_CPUFLAG_AVX512VL\,//' -i rte_build_config.h
   ninja
   sudo ninja install
   sudo ldconfig
