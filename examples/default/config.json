@@ -1,4 +1,11 @@
 {
+  "pktmbufs" : [{
+    "name": "MEMPOOL0",
+    "buffersize": 2176,
+    "poolsize": 32768,
+    "cachesize": 256,
+    "cpuid": 0
+  }],
   "interfaces" : [{
     "name": "sw1",
     "type": "TAP"
@@ -17,13 +24,6 @@
     "numanode": 0,
     "threadid": 1,
     "spec": "./default.spec",
-    "pktmbufs": [{
-      "name": "MEMPOOL0",
-      "buffersize": 2176,
-      "poolsize": 32768,
-      "cachesize": 256,
-      "cpuid": 0
-    }],
     "inputports": [{
       "ifacename": "sw1",
       "pktmbuf": "MEMPOOL0",
@@ -42,7 +42,7 @@
     },{
       "ifacename": "sw4",
       "pktmbuf": "MEMPOOL0",
-      "mtu": 1515,
+      "mtu": 1514,
       "bsz": 1
     }],
     "outputports": [{

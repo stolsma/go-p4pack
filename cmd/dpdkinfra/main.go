@@ -49,6 +49,11 @@ func main() {
 		log.Fatalf("DPDKInfraInit failed:", err)
 	}
 
+	// create Packet Mbuf mempools
+	for _, m := range conf.PktMbufs {
+		dpdki.PktMbufWithConfig(m)
+	}
+
 	// create dpdkinfra interfaces through the API
 	for _, i := range conf.Interfaces {
 		dpdki.InterfaceWithConfig(i)

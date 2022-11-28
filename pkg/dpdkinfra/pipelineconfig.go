@@ -5,8 +5,6 @@ package dpdkinfra
 
 import (
 	"path"
-
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
 type PipelineConfig struct {
@@ -15,7 +13,6 @@ type PipelineConfig struct {
 	BasePath    string           `json:"basepath"`
 	Spec        string           `json:"spec"`
 	ThreadID    uint             `json:"threadid"`
-	PktMbufs    []*PktMbufConfig `json:"pktmbufs"`
 	OutputPorts []*OutPortConfig `json:"outputports"`
 	InputPorts  []*InPortConfig  `json:"inputports"`
 	Start       *StartConfig     `json:"start"`
@@ -47,37 +44,6 @@ func (pc *PipelineConfig) GetSpec() string {
 
 func (pc *PipelineConfig) GetThreadID() uint {
 	return pc.ThreadID
-}
-
-type PktMbufConfig struct {
-	Name       string `json:"name"`
-	BufferSize uint   `json:"buffersize"`
-	PoolSize   uint32 `json:"poolsize"`
-	CacheSize  uint32 `json:"cachesize"`
-	CPUID      int    `json:"cpuid"`
-}
-
-func (mpc *PktMbufConfig) GetName() string {
-	return mpc.Name
-}
-
-func (mpc *PktMbufConfig) GetBufferSize() uint {
-	if mpc.BufferSize == 0 {
-		mpc.BufferSize = pktmbuf.RteMbufDefaultBufSize
-	}
-	return mpc.BufferSize
-}
-
-func (mpc *PktMbufConfig) GetPoolSize() uint32 {
-	return mpc.PoolSize
-}
-
-func (mpc *PktMbufConfig) GetCacheSize() uint32 {
-	return mpc.CacheSize
-}
-
-func (mpc *PktMbufConfig) GetCPUID() int {
-	return mpc.CPUID
 }
 
 type InPortConfig struct {
@@ -134,16 +100,6 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
 		log.Fatalf("%s create err: %d", pipeName, err)
 	}
 	log.Infof("%s created!", pipeName)
-
-	// Create PktMbuf memory pool
-	for _, m := range pipelineConfig.PktMbufs {
-		name := m.GetName()
-		err := dpdki.PktMbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
-		if err != nil {
-			log.Fatalf("Pktmbuf Mempool %s create err: %d", name, err)
-		}
-		log.Infof("Pktmbuf Mempool %s ready!", name)
-	}
 
 	// Add input ports to pipeline
 	// pipeline PIPELINE0 port in <portindex> tap <tapname> mempool MEMPOOL0 mtu 1500 bsz 1
