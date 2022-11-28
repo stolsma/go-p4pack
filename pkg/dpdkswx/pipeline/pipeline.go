@@ -182,6 +182,35 @@ func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *mempool.Mempool, mt
 	return pl.PortInConfig(portID, "fd", unsafe.Pointer(&params))
 }
 
+func (pl *Pipeline) AddInputPortEthDev(portID int, devName string, rxq int, bsz int) error {
+	var params C.struct_rte_swx_port_ethdev_reader_params
+
+	if devName == "" {
+		return nil
+	}
+
+	params.dev_name = C.CString(devName)
+	defer C.free(unsafe.Pointer(params.dev_name))
+	params.queue_id = C.ushort(rxq)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortInConfig(portID, "ethdev", unsafe.Pointer(&params))
+}
+
+func (pl *Pipeline) AddInputPortRing(portID int, ringName string, bsz int) error {
+	var params C.struct_rte_swx_port_ring_reader_params
+
+	if ringName == "" {
+		return nil
+	}
+
+	params.name = C.CString(ringName)
+	defer C.free(unsafe.Pointer(params.name))
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortInConfig(portID, "ring", unsafe.Pointer(&params))
+}
+
 func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Pointer) error {
 	ptype := C.CString(portType)
 	defer C.free(unsafe.Pointer(ptype))
