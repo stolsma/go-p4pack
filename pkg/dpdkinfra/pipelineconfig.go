@@ -50,6 +50,7 @@ type InPortConfig struct {
 	IfaceName string `json:"ifacename"`
 	PktMbuf   string `json:"pktmbuf"`
 	MTU       int    `json:"mtu"`
+	RxQueue   int    `json:"rxqueue"`
 	Bsz       int    `json:"bsz"`
 }
 
@@ -65,17 +66,26 @@ func (pc *InPortConfig) GetMTU() int {
 	return pc.MTU
 }
 
+func (pc *InPortConfig) GetRxQueue() int {
+	return pc.RxQueue
+}
+
 func (pc *InPortConfig) GetBsz() int {
 	return pc.Bsz
 }
 
 type OutPortConfig struct {
 	IfaceName string `json:"ifacename"`
+	TxQueue   int    `json:"txqueue"`
 	Bsz       int    `json:"bsz"`
 }
 
 func (pc *OutPortConfig) GetIfaceName() string {
 	return pc.IfaceName
+}
+
+func (pc *OutPortConfig) GetTxQueue() int {
+	return pc.TxQueue
 }
 
 func (pc *OutPortConfig) GetBsz() int {
@@ -105,22 +115,22 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
 	// pipeline PIPELINE0 port in <portindex> tap <tapname> mempool MEMPOOL0 mtu 1500 bsz 1
 	for i, t := range pipelineConfig.InputPorts {
 		name := t.GetIfaceName()
-		err = dpdki.PipelineAddInputPortTap(pipeName, i, name, t.GetPktMbuf(), t.GetMTU(), t.GetBsz())
+		err = dpdki.PipelineAddInputPort(pipeName, i, name, t.GetPktMbuf(), t.GetMTU(), t.GetRxQueue(), t.GetBsz())
 		if err != nil {
-			log.Fatalf("AddInPortTap %s:%s err: %d", pipeName, name, err)
+			log.Fatalf("AddInPort %s:%s err: %d", pipeName, name, err)
 		}
-		log.Infof("AddInPortTap %s:%s ready!", pipeName, name)
+		log.Infof("AddInPort %s:%s ready!", pipeName, name)
 	}
 
 	// Add output ports to pipeline
 	// pipeline PIPELINE0 port out 0 tap sw0 bsz 1
 	for i, t := range pipelineConfig.OutputPorts {
 		name := t.GetIfaceName()
-		err = dpdki.PipelineAddOutputPortTap(pipeName, i, name, t.GetBsz())
+		err = dpdki.PipelineAddOutputPort(pipeName, i, name, t.GetTxQueue(), t.GetBsz())
 		if err != nil {
-			log.Fatalf("AddOutPortTap %s:%s err: %d", pipeName, name, err)
+			log.Fatalf("AddOutPort %s:%s err: %d", pipeName, name, err)
 		}
-		log.Infof("AddOutPortTap %s:%s ready!", pipeName, name)
+		log.Infof("AddOutPort %s:%s ready!", pipeName, name)
 	}
 
 	// Build the pipeline program

@@ -93,8 +93,8 @@ func (di *DpdkInfra) PktMbufCreate(name string, bufferSize uint, poolSize uint32
 	return err
 }
 
-func (di *DpdkInfra) TapCreate(name string) error {
-	_, err := di.tapStore.Create(name)
+func (di *DpdkInfra) TapCreate(name string, tapConfig *TapConfig) error {
+	_, err := di.tapStore.Create(name, tapConfig)
 	return err
 }
 
@@ -112,7 +112,7 @@ func (di *DpdkInfra) RingCreate(name string, size uint, numaNode uint32) error {
 	return err
 }
 
-func (di *DpdkInfra) EthdevCreate(name string, params *ethdev.Params) error {
+func (di *DpdkInfra) EthdevCreate(name string, params *ethdev.LinkParams) error {
 	_, err := di.ethdevStore.Create(name, params)
 	return err
 }
@@ -122,6 +122,16 @@ func (di *DpdkInfra) PipelineCreate(plName string, numaNode int) (err error) {
 		_, err = di.pipelineStore.Create(plName, numaNode)
 	})
 	return
+}
+
+func (di *DpdkInfra) PipelineAddInputPort(plName string, portID int, pName string, mName string, mtu int, rxQueue int, bsz int) error {
+	if di.tapStore.Find(pName) != nil {
+		return di.PipelineAddInputPortTap(plName, portID, pName, mName, mtu, bsz)
+	}
+	if di.ethdevStore.Find(pName) != nil {
+		return di.PipelineAddInputPortEthDev(plName, portID, pName, rxQueue, bsz)
+	}
+	return errors.New("interface doesn't exists")
 }
 
 func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName string, mName string, mtu int, bsz int) error {
@@ -140,9 +150,37 @@ func (di *DpdkInfra) PipelineAddInputPortTap(plName string, portID int, tName st
 		return errors.New("mempool doesn't exists")
 	}
 
+	// TODO use this call
 	pipeline.PortIsValid()
 
 	return pipeline.AddInputPortTap(portID, int(tap.Fd()), pktmbuf.Mempool(), mtu, bsz)
+}
+
+func (di *DpdkInfra) PipelineAddInputPortEthDev(plName string, portID int, tName string, rxQueue int, bsz int) error {
+	pipeline := di.pipelineStore.Find(plName)
+	if pipeline == nil {
+		return errors.New("pipeline doesn't exists")
+	}
+
+	ethDev := di.ethdevStore.Find(tName)
+	if ethDev == nil {
+		return errors.New("ethdev interface doesn't exists")
+	}
+
+	// TODO use this call
+	pipeline.PortIsValid()
+
+	return pipeline.AddInputPortEthDev(portID, ethDev.DevName(), rxQueue, bsz)
+}
+
+func (di *DpdkInfra) PipelineAddOutputPort(plName string, portID int, pName string, txQueue int, bsz int) error {
+	if di.tapStore.Find(pName) != nil {
+		return di.PipelineAddOutputPortTap(plName, portID, pName, bsz)
+	}
+	if di.ethdevStore.Find(pName) != nil {
+		return di.PipelineAddOutputPortEthDev(plName, portID, pName, txQueue, bsz)
+	}
+	return errors.New("interface doesn't exists")
 }
 
 func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName string, bsz int) error {
@@ -156,9 +194,27 @@ func (di *DpdkInfra) PipelineAddOutputPortTap(plName string, portID int, tName s
 		return errors.New("tap interface doesn't exists")
 	}
 
+	// TODO use this call
 	pipeline.PortIsValid()
 
 	return pipeline.AddOutputPortTap(portID, int(tap.Fd()), bsz)
+}
+
+func (di *DpdkInfra) PipelineAddOutputPortEthDev(plName string, portID int, tName string, txQueue int, bsz int) error {
+	pipeline := di.pipelineStore.Find(plName)
+	if pipeline == nil {
+		return errors.New("pipeline doesn't exists")
+	}
+
+	ethDev := di.ethdevStore.Find(tName)
+	if ethDev == nil {
+		return errors.New("ethdev interface doesn't exists")
+	}
+
+	// TODO use this call
+	pipeline.PortIsValid()
+
+	return pipeline.AddOutputPortEthdev(portID, ethDev.DevName(), txQueue, bsz)
 }
 
 func (di *DpdkInfra) PipelineBuild(plName string, specfile string) error {

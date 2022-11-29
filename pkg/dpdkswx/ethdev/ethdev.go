@@ -8,6 +8,8 @@ package ethdev
 #include <stdint.h>
 #include <string.h>
 
+#include <net/if.h>
+
 #include <rte_ethdev.h>
 
 */
@@ -15,10 +17,11 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"syscall"
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
-	lled "github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev/ethdev"
+	lled "github.com/yerden/go-dpdk/ethdev"
 	"github.com/yerden/go-dpdk/mempool"
 )
 
@@ -31,26 +34,24 @@ type ParamsRss struct {
 	nQueues uint32
 }
 
-type Params struct {
-	devName           string
-	devArgs           string
-	portID            uint16 // Valid only when *dev_name* is NULL.
-	devHotplugEnabled bool
+type LinkParams struct {
+	DevName           string
+	DevArgs           string
+	DevHotplugEnabled bool
 
-	rx struct {
-		mtu       uint32
-		nQueues   uint16
-		queueSize uint32
-		mempool   *mempool.Mempool
-		rss       *ParamsRss
+	Rx struct {
+		Mtu       uint32
+		NQueues   uint16
+		QueueSize uint32
+		Mempool   *mempool.Mempool
+		Rss       *ParamsRss
+	}
+	Tx struct {
+		NQueues   uint16
+		QueueSize uint32
 	}
 
-	tx struct {
-		nQueues   uint16
-		queueSize uint32
-	}
-
-	promiscuous bool
+	Promiscuous bool
 }
 
 // Ethdev represents a Ethdev record
@@ -63,60 +64,52 @@ type Ethdev struct {
 	clean   func()
 }
 
-// Create Link interface. Returns a pointer to a Link structure or nil with error.
-func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
-	var portInfo lled.DevInfo
-	var portID lled.Port
+// Create Ethdev interface. Returns error when something went wrong.
+func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error {
+	var portInfo DevInfo
 	var rss *ParamsRss // *C.struct_link_params_rss
-	var mp *mempool.Mempool
 	var status C.int
 	var res error
 
 	// TODO add all params to check!
 	// Check input params
-	if (name == "") || (params == nil) || (params.rx.nQueues == 0) ||
-		(params.rx.queueSize == 0) || (params.tx.nQueues == 0) || (params.tx.queueSize == 0) {
+	if (name == "") || (params == nil) || (params.Rx.NQueues == 0) ||
+		(params.Rx.QueueSize == 0) || (params.Tx.NQueues == 0) || (params.Tx.QueueSize == 0) {
 		return nil
 	}
 
 	//	cname := C.CString(name)
 	//	defer C.free(unsafe.Pointer(cname))
-	devName := C.CString(params.devName)
+	devName := C.CString(params.DevName)
 	defer C.free(unsafe.Pointer(devName))
-	devArgs := C.CString(params.devArgs)
+	devArgs := C.CString(params.DevArgs)
 	defer C.free(unsafe.Pointer(devArgs))
 
 	// Performing Device Hotplug and valid for only VDEVs
-	if params.devHotplugEnabled {
+	if params.DevHotplugEnabled {
 		vdev := C.CString("vdev")
 		status = C.rte_eal_hotplug_add(vdev, devName, devArgs)
 		C.free(unsafe.Pointer(vdev))
 		if status != 0 {
-			return fmt.Errorf("link init: dev:%s hotplug add failed (%w)", params.devName, common.Err(status))
+			return fmt.Errorf("link init: dev:%s hotplug add failed (%w)", params.DevName, common.Err(status))
 		}
 	}
 
 	// get port id
-	if params.devName != "" {
-		portID, res = lled.GetPortByName(params.devName)
-		if res != nil {
-			return res
-		}
-	} else {
-		portID = lled.Port(params.portID)
-		if !portID.IsValid() {
-			return errors.New("link init: no valid port id")
-		}
+	portID, res := lled.GetPortByName(params.DevName)
+	if res != nil {
+		return res
 	}
 
 	// get device information
-	res = portID.InfoGet(&portInfo)
+	// TODO Get added methods upstreamed to go-dpdk!
+	res = InfoGet(portID, &portInfo)
 	if res != nil {
 		return res
 	}
 
 	// check requested receive RSS parameters for this device
-	rss = params.rx.rss
+	rss = params.Rx.Rss
 	if rss != nil {
 		if portInfo.RetaSize() == 0 || portInfo.RetaSize() > C.RTE_ETH_RSS_RETA_SIZE_512 {
 			return errors.New("link init: ethdev redirection table size is 0 or too large (>512)")
@@ -126,12 +119,12 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 			return errors.New("link init: requested # queues for RSS is 0 or too large (>16)")
 		}
 
-		maxRxQueues := (uint32)(portInfo.MaxRxQueues())
-		for i := 0; uint32(i) < rss.nQueues; i++ {
-			if rss.queueID[i] >= maxRxQueues {
-				return errors.New("link init: requested queue id > ethdev maximum # of Rx queues")
-			}
-		}
+		//		maxRxQueues := (uint32)(portInfo.MaxRxQueues())
+		//		for i := 0; uint32(i) < rss.nQueues; i++ {
+		//			if rss.queueID[i] >= maxRxQueues {
+		//				return errors.New("link init: requested queue id > ethdev maximum # of Rx queues")
+		//			}
+		//		}
 	}
 
 	//
@@ -140,8 +133,8 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 
 	// configure port config attributes to new port config
 	var mtu uint32 = 9000 - (C.RTE_ETHER_HDR_LEN + C.RTE_ETHER_CRC_LEN)
-	if params.rx.mtu > 0 {
-		mtu = params.rx.mtu
+	if params.Rx.Mtu > 0 {
+		mtu = params.Rx.Mtu
 	}
 
 	var optRss = lled.OptRss(lled.RssConf{})
@@ -153,7 +146,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		})
 	}
 
-	res = portID.DevConfigure(params.rx.nQueues, params.tx.nQueues,
+	res = portID.DevConfigure(params.Tx.NQueues, params.Tx.NQueues,
 		lled.OptLinkSpeeds(0),
 		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: mtu, SplitHdrSize: 0}),
 		lled.OptTxMode(lled.TxMode{MqMode: C.RTE_ETH_MQ_TX_NONE}),
@@ -165,7 +158,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	}
 
 	// if requested set deviceport to promiscuous mode
-	if params.promiscuous {
+	if params.Promiscuous {
 		res = portID.PromiscEnable()
 		if res != nil {
 			return res
@@ -178,14 +171,14 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	}
 
 	// Port RX queues setup
-	for i := 0; uint16(i) < params.rx.nQueues; i++ {
+	for i := 0; uint16(i) < params.Rx.NQueues; i++ {
 		status = C.rte_eth_rx_queue_setup(
 			(C.ushort)(portID),
 			(C.ushort)(i),
-			(C.ushort)(params.rx.queueSize),
+			(C.ushort)(params.Rx.QueueSize),
 			(C.uint)(cpuID),
 			nil,
-			(*C.struct_rte_mempool)(unsafe.Pointer(mp)),
+			(*C.struct_rte_mempool)(unsafe.Pointer(params.Rx.Mempool)),
 		)
 		if status < 0 {
 			return common.Err(status)
@@ -193,9 +186,9 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	}
 
 	// Port TX queues setup
-	for i := 0; uint16(i) < params.tx.nQueues; i++ {
+	for i := 0; uint16(i) < params.Tx.NQueues; i++ {
 		status = C.rte_eth_tx_queue_setup(
-			(C.ushort)(portID), (C.ushort)(i), (C.ushort)(params.tx.queueSize), (C.uint)(cpuID), nil,
+			(C.ushort)(portID), (C.ushort)(i), (C.ushort)(params.Tx.QueueSize), (C.uint)(cpuID), nil,
 		)
 		if status < 0 {
 			return common.Err(status)
@@ -219,7 +212,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 
 	// Port link up
 	res = portID.SetLinkUp()
-	if res != nil { // && (res != -C.ENOTSUP) {
+	if res != nil && !errors.Is(res, syscall.ENOTSUP) {
 		portID.Stop()
 		return res
 	}
@@ -231,8 +224,8 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	if res != nil {
 		return res
 	}
-	ethdev.nRxQ = params.rx.nQueues
-	ethdev.nTxQ = params.tx.nQueues
+	ethdev.nRxQ = params.Rx.NQueues
+	ethdev.nTxQ = params.Tx.NQueues
 	ethdev.clean = clean
 
 	return nil
@@ -285,4 +278,45 @@ func (ethdev *Ethdev) IsUp() (bool, error) {
 	}
 
 	return linkParams.Status(), nil
+}
+
+// DevInfo is a structure used to retrieve the contextual information
+// of an Ethernet device, such as the controlling driver of the
+// device, etc...
+type DevInfo C.struct_rte_eth_dev_info
+
+// DriverName returns driver_name as a Go string.
+func (info *DevInfo) DriverName() string {
+	return C.GoString((*C.struct_rte_eth_dev_info)(info).driver_name)
+}
+
+// InterfaceName is the name of the interface in the system.
+func (info *DevInfo) InterfaceName() string {
+	var buf [C.IF_NAMESIZE]C.char
+	return C.GoString(C.if_indextoname(info.if_index, &buf[0]))
+}
+
+// RetaSize returns Device redirection table size, the total number of
+// entries.
+func (info *DevInfo) RetaSize() uint16 {
+	return uint16(info.reta_size)
+}
+
+// MaxRxQueues returns Device maximum Receive queues.
+func (info *DevInfo) MaxRxQueues() uint16 {
+	return uint16(info.max_rx_queues)
+}
+
+// MaxRxQueues returns Device maximum Transmit queues.
+func (info *DevInfo) MaxTxQueues() uint16 {
+	return uint16(info.max_tx_queues)
+}
+
+// MaxRxQueues returns bit mask of RSS offloads, the bit offset also means flow type.
+func (info *DevInfo) FlowTypeRssOffloads() uint64 {
+	return uint64(info.flow_type_rss_offloads)
+}
+
+func InfoGet(pid lled.Port, info *DevInfo) error {
+	return common.Err(C.rte_eth_dev_info_get(C.ushort(pid), (*C.struct_rte_eth_dev_info)(info)))
 }

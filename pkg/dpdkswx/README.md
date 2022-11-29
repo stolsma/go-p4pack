@@ -1,6 +1,6 @@
 # Go-P4Pack DPDK SWX Package
 
-THis package supports the DPDK SWX P4 Spec programmable dataplane.
+This package supports the DPDK SWX P4 Spec programmable dataplane.
 
 ## Supported DPDK SWX C functions
 
@@ -84,8 +84,8 @@ Crossed functions are supported by this package. All functions are tagged 'exper
 
 ### added in DPDK 21.11
 
-- [*] rte_swx_ctl_pipeline_learner_default_entry_add;
-- [*] rte_swx_ctl_pipeline_learner_default_entry_read;
+- [x] rte_swx_ctl_pipeline_learner_default_entry_add;
+- [x] rte_swx_ctl_pipeline_learner_default_entry_read;
 - [ ] rte_swx_ctl_pipeline_learner_stats_read;
 - [ ] rte_swx_ctl_learner_action_info_get;
 - [ ] rte_swx_ctl_learner_info_get;

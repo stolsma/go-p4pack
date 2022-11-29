@@ -1,7 +1,6 @@
 <!--
 /*
- * Copyright 2021 - Sander Tolsma. All rights reserved
- *
+ * SPDX-FileCopyrightText: Copyright 2021-present Sander Tolsma. All rights reserved
  * SPDX-License-Identifier: Apache-2.0
  */
 - -->
@@ -33,7 +32,14 @@ cd go-p4pack
 Build go-p4pack docker image with all the example applications:
 
 ``` bash
+./build/dpdk/build.sh 
 ./build/go-p4pack/build.sh 
+```
+
+If you did not do the local build, then pull the image from the GitHub Container Registry (ghcr.io):
+
+``` bash
+docker pull ghcr.io/stolsma/go-p4pack:latest
 ```
 
 ## Before startup: setup hugepages
@@ -46,14 +52,15 @@ sudo mount -t hugetlbfs nodev /mnt/huge
 sudo sysctl -w vm.nr_hugepages=256
 ```
 
-## start go-p4pack docker container
+## Start go-p4pack docker container
+
 
 Run go-p4pack docker image:
 
-TODO: create go-p4pack script for easy build & startup of the docker image
+TODO: extend go-p4pack script for easy build & startup of the docker image
 
 ``` bash
-./go-p4pack run
+./go-p4pack.sh
 ```
 
 ## Startup of the DPDK SWX Pipeline driver (cmd/dpdkinfra)
@@ -62,24 +69,25 @@ TODO: Describe how the different compiled example programs can be run!
 
 The standard DPDK SWX example program can be run by:
 
-!!! The following example is not working anymore !!!
-
 ``` bash
-sudo ./dpdk-pipeline -c 0x3 -- -s ./examples/ipdk-simple_l3/simple_l3.cli
-# sudo ./dpdk-pipeline -c 0x3 --log-level='.*,8' -- -s ./examples/ipdk-simple_l3/simple_l3.cli
+root@dec72f3353eb:/go-p4pack# ./dpdkinfra 
 ```
 
 ## Connect to the cmd/dpdkinfra driver integrated ssh terminal
 
-from a second bash terminal
+From a second bash terminal to the docker host:
 
 ``` bash
 ssh -p 2222 user@0.0.0.0
 ```
 
+Or connect to the runing docker image with:
+
 ``` bash
 docker exec -it go-p4pack /bin/bash
 ```
+
+And create the demo netowk environment as described in the next paragraph.
 
 ## Test the Go DPDK SWX Pipeline driver (cmd/dpdkinfra)
 
@@ -115,6 +123,8 @@ Test connectivity
 sudo ip netns list
 sudo ip netns exec host1 ping 192.168.222.2
 sudo ip netns exec host2 ping 192.168.222.1
+sudo ip netns exec host3 ping 192.168.222.1
+sudo ip netns exec host4 ping 192.168.222.1
 ```
 
 Do some performance testing
@@ -123,6 +133,9 @@ Do some performance testing
 # add -u to do UDP testing!
 sudo ip netns exec host1 iperf -s
 sudo ip netns exec host2 iperf -c 192.168.222.1 -P 10
+
+sudo ip netns exec host3 iperf -s
+sudo ip netns exec host4 iperf -c 192.168.222.3 -P 10
 
 # with iperf3...
 sudo ip netns exec host1 iperf3 -s

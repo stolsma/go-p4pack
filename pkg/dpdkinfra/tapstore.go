@@ -29,7 +29,7 @@ func (ts TapStore) Find(name string) *Tap {
 }
 
 // Create Tap interface. Returns a pointer to a Tap structure or nil with error.
-func (ts TapStore) Create(name string) (*Tap, error) {
+func (ts TapStore) Create(name string, tapConfig *TapConfig) (*Tap, error) {
 	tap := Tap{}
 
 	if ts.Find(name) != nil {
@@ -42,7 +42,7 @@ func (ts TapStore) Create(name string) (*Tap, error) {
 	}
 
 	// initialize
-	tap.Init(name, clean)
+	tap.Init(name, tapConfig, clean)
 
 	// add node to list
 	ts[name] = &tap

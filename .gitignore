@@ -1,7 +1,5 @@
-src/build/
-src/infra/build/
 .vscode/launch.json
 hostkey
 __debug_bin
-src/infra/buildold/
 test.log
+zoldsrc

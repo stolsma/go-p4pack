@@ -25,7 +25,7 @@ func (ps EthdevStore) Find(name string) *ethdev.Ethdev {
 }
 
 // Create Ethdev. Returns a pointer to a Ethdev structure or nil with error.
-func (ps EthdevStore) Create(name string, params *ethdev.Params) (*ethdev.Ethdev, error) {
+func (ps EthdevStore) Create(name string, params *ethdev.LinkParams) (*ethdev.Ethdev, error) {
 	var ethdev ethdev.Ethdev
 
 	if ps.Find(name) != nil {

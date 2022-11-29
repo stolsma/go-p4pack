@@ -4,35 +4,93 @@
 package dpdkinfra
 
 import (
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/vishvananda/netlink"
 )
 
 type InterfaceConfig struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name   string     `json:"name"`
+	Tap    *TapConfig `json:"tap"`
+	Vdev   *PMDParams `json:"vdev"`
+	EthDev *PMDParams `json:"ethdev"`
 }
 
 func (i *InterfaceConfig) GetName() string {
 	return i.Name
 }
 
-func (i *InterfaceConfig) GetType() string {
-	return i.Type
+type PMDParams struct {
+	DevName string `json:"devname"`
+	DevArgs string `json:"devargs"`
+	Rx      *struct {
+		Mtu       uint32 `json:"mtu"`
+		NQueues   uint16 `json:"nqueues"`
+		QueueSize uint32 `json:"queuesize"`
+		PktMbuf   string `json:"pktmbuf"`
+	}
+	Tx *struct {
+		NQueues   uint16 `json:"nqueues"`
+		QueueSize uint32 `json:"queuesize"`
+	}
 }
 
-// Create interfaces through the DpdkInfra API
-func (dpdki *DpdkInfra) InterfaceWithConfig(interfaceConfig *InterfaceConfig) {
-	// Create (TAP) interface ports
-	// TODO: Implement other interface types!!
-	name := interfaceConfig.GetName()
-	err := dpdki.TapCreate(name)
-	if err != nil {
-		log.Fatalf("TAP %s create err: %d", name, err)
+// Create/bind devices (interfaces) through the DpdkInfra API
+func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
+	// create/bind & configure TAP interface devices
+	if ifConfig.Tap != nil {
+		name := ifConfig.GetName()
+		err := dpdki.TapCreate(name, ifConfig.Tap)
+		if err != nil {
+			log.Fatalf("TAP %s create err: %d", name, err)
+		}
+
+		// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
+		dpdki.InterfaceUp(name)
+		log.Infof("TAP %s created!", name)
+		return
 	}
 
-	// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
-	dpdki.InterfaceUp(name)
-	log.Infof("TAP %s created!", name)
+	// create and/or bind & configure PMD devices to this environment
+	if ifConfig.Vdev != nil || ifConfig.EthDev != nil {
+		var vh *PMDParams
+		var p ethdev.LinkParams
+
+		name := ifConfig.GetName()
+		if ifConfig.Vdev != nil {
+			vh = ifConfig.Vdev
+			p.DevHotplugEnabled = true
+		} else {
+			vh = ifConfig.EthDev
+		}
+
+		// get Packet buffer memory pool
+		mp := dpdki.mbufStore.Find(vh.Rx.PktMbuf)
+		if mp == nil {
+			log.Fatalf("vhost %s mempool %s not found", name, vh.Rx.PktMbuf)
+		}
+
+		// copy parameters
+		p.DevName = vh.DevName
+		p.DevArgs = vh.DevArgs
+		p.Rx.Mtu = vh.Rx.Mtu
+		p.Rx.NQueues = vh.Rx.NQueues
+		p.Rx.QueueSize = vh.Rx.QueueSize
+		p.Rx.Mempool = mp.Mempool()
+		p.Rx.Rss = nil
+		p.Tx.NQueues = vh.Tx.NQueues
+		p.Tx.QueueSize = vh.Tx.QueueSize
+		p.Promiscuous = false
+
+		// create and configure the PMD interface
+		err := dpdki.EthdevCreate(name, &p)
+		if err != nil {
+			log.Fatalf("vhost %s create err: %d", name, err)
+		}
+
+		// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
+		dpdki.InterfaceUp(name)
+		log.Infof("PMD %s (device name: %s) created!", name, vh.DevName)
+	}
 }
 
 // Create interfaces through the DpdkInfra API

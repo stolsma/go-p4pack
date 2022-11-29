@@ -8,16 +8,42 @@
   }],
   "interfaces" : [{
     "name": "sw1",
-    "type": "TAP"
+    "tap": {}
   },{
     "name": "sw2",
-    "type": "TAP"
+    "tap": {}
   },{
     "name": "sw3",
-    "type": "TAP"
+    "vdev": {
+      "devname": "virtio_user0",
+      "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
+      "rx": {
+        "mtu": 1500,
+        "nqueues": 1,
+        "queuesize": 32,
+        "pktmbuf": "MEMPOOL0"
+      },
+      "tx": {
+        "nqueues": 1,
+        "queuesize": 32
+      }
+    }
   },{
     "name": "sw4",
-    "type": "TAP"
+    "vdev": {
+      "devname": "virtio_user1",
+      "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw4",
+      "rx": {
+        "mtu": 1500,
+        "nqueues": 1,
+        "queuesize": 32,
+        "pktmbuf": "MEMPOOL0"
+      },
+      "tx": {
+        "nqueues": 1,
+        "queuesize": 32
+      }
+    }
   }],
   "pipelines" :[{
     "name": "PIPELINE0",
@@ -36,13 +62,11 @@
       "bsz": 1
     },{
       "ifacename": "sw3",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
+      "rxqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw4",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
+      "rxqueue": 0,
       "bsz": 1
     }],
     "outputports": [{
@@ -53,9 +77,11 @@
       "bsz": 1
     },{
       "ifacename": "sw3",
+      "txqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw4",
+      "txqueue": 0,
       "bsz": 1
     }],
     "start": {
@@ -89,7 +115,7 @@
       "ip": ["192", "168", "222", "4"]
     }],
     "flowsets": [{
-      "name" : "Check_all_relations",
+      "name" : "Check_some_relations",
       "flows": [{
         "source": {
           "interface": "sw1"
