@@ -23,10 +23,12 @@ type PMDParams struct {
 	DevName string `json:"devname"`
 	DevArgs string `json:"devargs"`
 	Rx      *struct {
-		Mtu       uint32 `json:"mtu"`
-		NQueues   uint16 `json:"nqueues"`
-		QueueSize uint32 `json:"queuesize"`
-		PktMbuf   string `json:"pktmbuf"`
+		Mtu         uint32           `json:"mtu"`
+		NQueues     uint16           `json:"nqueues"`
+		QueueSize   uint32           `json:"queuesize"`
+		PktMbuf     string           `json:"pktmbuf"`
+		Rss         ethdev.ParamsRss `json:"rss"`
+		Promiscuous bool             `json:"promiscuous"`
 	}
 	Tx *struct {
 		NQueues   uint16 `json:"nqueues"`
@@ -76,15 +78,15 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
 		p.Rx.NQueues = vh.Rx.NQueues
 		p.Rx.QueueSize = vh.Rx.QueueSize
 		p.Rx.Mempool = mp.Mempool()
-		p.Rx.Rss = nil
+		p.Rx.Rss = vh.Rx.Rss
 		p.Tx.NQueues = vh.Tx.NQueues
 		p.Tx.QueueSize = vh.Tx.QueueSize
-		p.Promiscuous = false
+		p.Promiscuous = vh.Rx.Promiscuous
 
 		// create and configure the PMD interface
 		err := dpdki.EthdevCreate(name, &p)
 		if err != nil {
-			log.Fatalf("vhost %s create err: %d", name, err)
+			log.Fatalf("vdev/ethdev %s create err: %d", name, err)
 		}
 
 		// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!

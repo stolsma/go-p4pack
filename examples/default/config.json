@@ -21,7 +21,8 @@
         "mtu": 1500,
         "nqueues": 1,
         "queuesize": 32,
-        "pktmbuf": "MEMPOOL0"
+        "pktmbuf": "MEMPOOL0",
+        "promiscuous": true
       },
       "tx": {
         "nqueues": 1,
@@ -37,7 +38,8 @@
         "mtu": 1500,
         "nqueues": 1,
         "queuesize": 32,
-        "pktmbuf": "MEMPOOL0"
+        "pktmbuf": "MEMPOOL0",
+        "promiscuous": true
       },
       "tx": {
         "nqueues": 1,
@@ -97,6 +99,7 @@
     }
   }],
   "flowtest" :{
+    "start": false,
     "interfaces" : [{
       "name": "sw1",
       "mac": ["0x32","0xfb", "0xfa", "0xc6", "0x67", "0x01"],

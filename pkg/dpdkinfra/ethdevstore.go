@@ -16,25 +16,25 @@ func CreateEthdevStore() EthdevStore {
 	return make(EthdevStore)
 }
 
-func (ps EthdevStore) Find(name string) *ethdev.Ethdev {
+func (eds EthdevStore) Find(name string) *ethdev.Ethdev {
 	if name == "" {
 		return nil
 	}
 
-	return ps[name]
+	return eds[name]
 }
 
 // Create Ethdev. Returns a pointer to a Ethdev structure or nil with error.
-func (ps EthdevStore) Create(name string, params *ethdev.LinkParams) (*ethdev.Ethdev, error) {
+func (eds EthdevStore) Create(name string, params *ethdev.LinkParams) (*ethdev.Ethdev, error) {
 	var ethdev ethdev.Ethdev
 
-	if ps.Find(name) != nil {
+	if eds.Find(name) != nil {
 		return nil, errors.New("ethdev with this name exists")
 	}
 
 	// create callback function called when record is freed
 	clean := func() {
-		delete(ps, name)
+		delete(eds, name)
 	}
 
 	// initialize
@@ -44,14 +44,14 @@ func (ps EthdevStore) Create(name string, params *ethdev.LinkParams) (*ethdev.Et
 	}
 
 	// add node to list
-	ps[name] = &ethdev
+	eds[name] = &ethdev
 
 	return &ethdev, nil
 }
 
 // Delete given Ethdev from the store and free corresponding Ethdev memory
-func (ps EthdevStore) Delete(name string) {
-	ethdev := ps.Find(name)
+func (eds EthdevStore) Delete(name string) {
+	ethdev := eds.Find(name)
 
 	if ethdev != nil {
 		ethdev.Free()
@@ -59,8 +59,21 @@ func (ps EthdevStore) Delete(name string) {
 }
 
 // Delete all Ethdev and free corresponding memory
-func (ps EthdevStore) Clear() {
-	for _, ethdev := range ps {
+func (eds EthdevStore) Clear() {
+	for _, ethdev := range eds {
 		ethdev.Free()
 	}
+}
+
+func (eds EthdevStore) Iterate(fn func(key string, ethdev *ethdev.Ethdev) error) error {
+	if fn != nil {
+		for k, v := range eds {
+			if err := fn(k, v); err != nil {
+				return err
+			}
+		}
+	} else {
+		return errors.New("no function to call")
+	}
+	return nil
 }

@@ -70,9 +70,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Tests initialization failed:", err)
 	}
-	err = tests.StartAll()
-	if err != nil {
-		log.Fatalf("Starting predefined flowtests failed:", err)
+	if conf.FlowTest.GetStart() {
+		err = tests.StartAll()
+		if err != nil {
+			log.Fatalf("Starting predefined flowtests failed:", err)
+		}
 	}
 
 	// start ssh shell cli server with our CLI

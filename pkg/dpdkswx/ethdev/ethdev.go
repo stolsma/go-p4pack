@@ -21,18 +21,23 @@ import (
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 	lled "github.com/yerden/go-dpdk/ethdev"
 	"github.com/yerden/go-dpdk/mempool"
 )
 
-const RetaConfSize = (C.RTE_ETH_RSS_RETA_SIZE_512 / C.RTE_ETH_RETA_GROUP_SIZE)
+var log logging.Logger
 
-const LinkRxqRssMax = 16
-
-type ParamsRss struct {
-	queueID [LinkRxqRssMax]uint32
-	nQueues uint32
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkswx/ethdev", func(logger logging.Logger) {
+		log = logger
+	})
 }
+
+const RetaConfSize = (EthRssRetaSize512 / EthRetaGroupSize)
+
+type ParamsRss []uint16
 
 type LinkParams struct {
 	DevName           string
@@ -44,7 +49,7 @@ type LinkParams struct {
 		NQueues   uint16
 		QueueSize uint32
 		Mempool   *mempool.Mempool
-		Rss       *ParamsRss
+		Rss       ParamsRss
 	}
 	Tx struct {
 		NQueues   uint16
@@ -67,7 +72,6 @@ type Ethdev struct {
 // Create Ethdev interface. Returns error when something went wrong.
 func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error {
 	var portInfo DevInfo
-	var rss *ParamsRss // *C.struct_link_params_rss
 	var status C.int
 	var res error
 
@@ -78,8 +82,6 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 		return nil
 	}
 
-	//	cname := C.CString(name)
-	//	defer C.free(unsafe.Pointer(cname))
 	devName := C.CString(params.DevName)
 	defer C.free(unsafe.Pointer(devName))
 	devArgs := C.CString(params.DevArgs)
@@ -102,29 +104,28 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 	}
 
 	// get device information
-	// TODO Get added methods upstreamed to go-dpdk!
 	res = InfoGet(portID, &portInfo)
 	if res != nil {
 		return res
 	}
 
+	// check number of queues to use
+	if params.Rx.NQueues > portInfo.MaxRxQueues() || params.Rx.NQueues > portInfo.MaxTxQueues() {
+		return errors.New("link init: Number of Tx or Rx queues to large")
+	}
+
 	// check requested receive RSS parameters for this device
-	rss = params.Rx.Rss
+	rss := params.Rx.Rss
 	if rss != nil {
-		if portInfo.RetaSize() == 0 || portInfo.RetaSize() > C.RTE_ETH_RSS_RETA_SIZE_512 {
+		if portInfo.RetaSize() == 0 || portInfo.RetaSize() > EthRssRetaSize512 {
 			return errors.New("link init: ethdev redirection table size is 0 or too large (>512)")
 		}
 
-		if rss.nQueues == 0 || rss.nQueues >= LinkRxqRssMax {
-			return errors.New("link init: requested # queues for RSS is 0 or too large (>16)")
+		for i := 0; i < len(rss); i++ {
+			if rss[i] >= params.Rx.NQueues {
+				return errors.New("link init: RSS queue id > maximum requested # of Rx queues")
+			}
 		}
-
-		//		maxRxQueues := (uint32)(portInfo.MaxRxQueues())
-		//		for i := 0; uint32(i) < rss.nQueues; i++ {
-		//			if rss.queueID[i] >= maxRxQueues {
-		//				return errors.New("link init: requested queue id > ethdev maximum # of Rx queues")
-		//			}
-		//		}
 	}
 
 	//
@@ -132,24 +133,24 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 	//
 
 	// configure port config attributes to new port config
-	var mtu uint32 = 9000 - (C.RTE_ETHER_HDR_LEN + C.RTE_ETHER_CRC_LEN)
+	var mtu uint32 = 9000 - (EtherHdrLen + EtherCRCLen)
 	if params.Rx.Mtu > 0 {
 		mtu = params.Rx.Mtu
 	}
 
 	var optRss = lled.OptRss(lled.RssConf{})
-	var rxMqMode = C.RTE_ETH_MQ_RX_NONE
+	var rxMqMode = EthMqRxNone
 	if rss != nil {
-		rxMqMode = C.RTE_ETH_MQ_RX_RSS
+		rxMqMode = EthMqRxRss
 		optRss = lled.OptRss(lled.RssConf{
-			Hf: (C.RTE_ETH_RSS_IP | C.RTE_ETH_RSS_TCP | C.RTE_ETH_RSS_UDP) & portInfo.FlowTypeRssOffloads(),
+			Hf: (EthRssIP | EthRssTCP | EthRssUDP) & portInfo.FlowTypeRssOffloads(),
 		})
 	}
 
 	res = portID.DevConfigure(params.Tx.NQueues, params.Tx.NQueues,
 		lled.OptLinkSpeeds(0),
 		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: mtu, SplitHdrSize: 0}),
-		lled.OptTxMode(lled.TxMode{MqMode: C.RTE_ETH_MQ_TX_NONE}),
+		lled.OptTxMode(lled.TxMode{MqMode: EthMqTxNone}),
 		optRss,
 		lled.OptLoopbackMode(0),
 	)
@@ -161,7 +162,10 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 	if params.Promiscuous {
 		res = portID.PromiscEnable()
 		if res != nil {
-			return res
+			if !errors.Is(res, syscall.ENOTSUP) {
+				return res
+			}
+			log.Infof("PMD %s does not support promiscuous mode", name)
 		}
 	}
 
@@ -212,9 +216,12 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 
 	// Port link up
 	res = portID.SetLinkUp()
-	if res != nil && !errors.Is(res, syscall.ENOTSUP) {
-		portID.Stop()
-		return res
+	if res != nil {
+		if !errors.Is(res, syscall.ENOTSUP) {
+			portID.Stop()
+			return res
+		}
+		log.Infof("PMD %s does not support SetLinkUp", name)
 	}
 
 	// Node fill in
@@ -247,22 +254,22 @@ func (ethdev *Ethdev) Free() {
 }
 
 // TODO Rewrite this function to portId.RssRetaUpdate!
-func rssSetup(portID lled.Port, retaSize uint16, rss *ParamsRss) int {
+func rssSetup(portID lled.Port, retaSize uint16, rss ParamsRss) int {
 	var retaConf [RetaConfSize]C.struct_rte_eth_rss_reta_entry64
 	var i uint16
 	var status int
 
-	// RETA setting
+	// RETA setting, ethdev retasize is always a multiple of RTE_ETH_RETA_GROUP_SIZE!
 	for i = 0; i < retaSize; i++ {
-		retaConf[i/C.RTE_ETH_RETA_GROUP_SIZE].mask = C.UINT64_MAX
+		retaConf[i/EthRetaGroupSize].mask = C.UINT64_MAX
 	}
 
 	for i = 0; i < retaSize; i++ {
-		retaID := (C.uint32_t)(i / C.RTE_ETH_RETA_GROUP_SIZE)
-		retaPos := (C.uint32_t)(i % C.RTE_ETH_RETA_GROUP_SIZE)
-		rssQsPos := (C.uint32_t)(i % (uint16)(rss.nQueues))
+		retaID := (C.uint32_t)(i / EthRetaGroupSize)
+		retaPos := (C.uint32_t)(i % EthRetaGroupSize)
+		rssQsPos := (C.uint32_t)(i % (uint16)(len(rss)))
 
-		retaConf[retaID].reta[retaPos] = (C.uint16_t)(rss.queueID[rssQsPos]) //  uint16 type?
+		retaConf[retaID].reta[retaPos] = (C.uint16_t)(rss[rssQsPos])
 	}
 
 	// portId.RssRetaUpdate(([]ethdev.RssRetaEntry64)(reta_conf), reta_size)
@@ -279,6 +286,69 @@ func (ethdev *Ethdev) IsUp() (bool, error) {
 
 	return linkParams.Status(), nil
 }
+
+func (ethdev *Ethdev) SetLinkUp() error {
+	return ethdev.portID.SetLinkUp()
+}
+
+func (ethdev *Ethdev) SetLinkDown() error {
+	return ethdev.portID.SetLinkDown()
+}
+
+func (ethdev *Ethdev) GetPortInfoString() (string, error) {
+	var portInfo DevInfo
+	info := ""
+
+	linkParams, err := ethdev.portID.EthLinkGet()
+	if err != nil {
+		return "", err
+	}
+	if linkParams.Status() {
+		info += fmt.Sprintf("  Link Status            : %s \n", "Up")
+	} else {
+		info += fmt.Sprintf("  Link Status            : %s \n", "Down")
+	}
+	if linkParams.AutoNeg() {
+		info += fmt.Sprintf("  Autonegotioation       : %s \n", "On")
+	} else {
+		info += fmt.Sprintf("  Autonegotioation       : %s \n", "Off")
+	}
+	if linkParams.Duplex() {
+		info += fmt.Sprintf("  Duplex                 : %s \n", "Full")
+	} else {
+		info += fmt.Sprintf("  Duplex                 : %s \n", "Half")
+	}
+	info += fmt.Sprintf("  Linkspeed (mbps)       : %d \n", linkParams.Speed())
+	info += "\n"
+
+	err = InfoGet(ethdev.portID, &portInfo)
+	if err != nil {
+		return "", err
+	}
+	info += portInfo.String()
+
+	return info, nil
+}
+
+/****************************************************************************************
+ * Everything defined below this line is missing in go-dpdk and needs to be upstreamed! *
+ ****************************************************************************************/
+
+const (
+	EtherHdrLen = C.RTE_ETHER_HDR_LEN
+	EtherCRCLen = C.RTE_ETHER_CRC_LEN
+
+	EthMqRxNone = C.RTE_ETH_MQ_RX_NONE
+	EthMqRxRss  = C.RTE_ETH_MQ_RX_RSS
+	EthMqTxNone = C.RTE_ETH_MQ_TX_NONE
+
+	EthRssIP  = C.RTE_ETH_RSS_IP
+	EthRssTCP = C.RTE_ETH_RSS_TCP
+	EthRssUDP = C.RTE_ETH_RSS_UDP
+
+	EthRetaGroupSize  = C.RTE_ETH_RETA_GROUP_SIZE
+	EthRssRetaSize512 = C.RTE_ETH_RSS_RETA_SIZE_512
+)
 
 // DevInfo is a structure used to retrieve the contextual information
 // of an Ethernet device, such as the controlling driver of the
@@ -319,4 +389,45 @@ func (info *DevInfo) FlowTypeRssOffloads() uint64 {
 
 func InfoGet(pid lled.Port, info *DevInfo) error {
 	return common.Err(C.rte_eth_dev_info_get(C.ushort(pid), (*C.struct_rte_eth_dev_info)(info)))
+}
+
+func (info *DevInfo) String() string {
+	result := ""
+	result += fmt.Sprintf("  device name            : %s \n", C.GoString(info.device.name))
+	result += fmt.Sprintf("  driver name            : %s \n", C.GoString(info.device.driver.name))
+	result += fmt.Sprintf("  device alias           : %s \n", C.GoString(info.device.driver.alias))
+	result += fmt.Sprintf("  bus                    : %s \n", C.GoString(info.device.bus.name))
+	result += fmt.Sprintf("  numa node              : %d \n", info.device.numa_node)
+	result += fmt.Sprintf("  ifIndex                : %d \n", info.if_index)
+	result += fmt.Sprintf("  min MTU                : %d \n", info.min_mtu)
+	result += fmt.Sprintf("  max MTU                : %d \n", info.max_mtu)
+	result += fmt.Sprintf("  dev_flags              : %d \n", info.dev_flags)
+	result += fmt.Sprintf("  min_rx_bufsize         : %d \n", info.min_rx_bufsize)
+	result += fmt.Sprintf("  max_rx_pktlen          : %d \n", info.max_rx_pktlen)
+	result += fmt.Sprintf("  max_lro_pkt_size       : %d \n", info.max_lro_pkt_size)
+	result += fmt.Sprintf("  max_rx_queue           : %d \n", info.max_rx_queues)
+	result += fmt.Sprintf("  max_tx_queue           : %d \n", info.max_tx_queues)
+	result += fmt.Sprintf("  max_mac_addrs          : %d \n", info.max_mac_addrs)
+	result += fmt.Sprintf("  max_hash_mac_addrs     : %d \n", info.max_hash_mac_addrs)
+	result += fmt.Sprintf("  max_vf                 : %d \n", info.max_vfs)
+	result += fmt.Sprintf("  max_vmdq_pools         : %d \n", info.max_vmdq_pools)
+	// rx_seg_capa		_Ctype_struct_rte_eth_rxseg_capa
+	result += fmt.Sprintf("  rx_offload_capa        : %d \n", info.rx_offload_capa)
+	result += fmt.Sprintf("  tx_offload_capa        : %d \n", info.tx_offload_capa)
+	result += fmt.Sprintf("  rx_queue_offload_capa  : %d \n", info.rx_queue_offload_capa)
+	result += fmt.Sprintf("  tx_queue_offload_capa  : %d \n", info.tx_queue_offload_capa)
+	result += fmt.Sprintf("  reta_size              : %d \n", info.reta_size)
+	result += fmt.Sprintf("  ihash_key_size         : %d \n", info.hash_key_size)
+	result += fmt.Sprintf("  flow_type_rss_offloads : %d \n", info.flow_type_rss_offloads)
+	result += fmt.Sprintf("  vmdq_queue_base        : %d \n", info.vmdq_queue_base)
+	result += fmt.Sprintf("  vmdq_queue_num         : %d \n", info.vmdq_queue_num)
+	result += fmt.Sprintf("  vmdq_pool_base         : %d \n", info.vmdq_pool_base)
+	// rx_desc_lim		_Ctype_struct_rte_eth_desc_lim
+	// tx_desc_lim		_Ctype_struct_rte_eth_desc_lim
+	result += fmt.Sprintf("  speed_capa             : %d \n", info.speed_capa)
+	result += fmt.Sprintf("  nb_rx_queues           : %d \n", info.nb_rx_queues)
+	result += fmt.Sprintf("  nb_tx_queues           : %d \n", info.nb_tx_queues)
+	result += fmt.Sprintf("  dev_cap                : %d \n", info.dev_capa)
+
+	return result
 }

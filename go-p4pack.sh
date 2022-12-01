@@ -14,6 +14,9 @@ docker run \
 		--privileged \
 		-v "${PWD}":/dummy \
 		-v /mnt/huge:/mnt/huge \
+		-v /sys/bus/pci/devices:/sys/bus/pci/devices \
+		-v /sys/devices/system/node:/sys/devices/system/node \
+		-v /dev:/dev \
 		-p 9339:9339 \
 		-p 9559:9559 \
 		-p 2222:2222 \

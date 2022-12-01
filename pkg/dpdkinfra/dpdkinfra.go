@@ -117,6 +117,30 @@ func (di *DpdkInfra) EthdevCreate(name string, params *ethdev.LinkParams) error 
 	return err
 }
 
+func (di *DpdkInfra) LinkUpDown(name string, status bool) error {
+	ethdev := di.ethdevStore.Find(name)
+	if ethdev == nil {
+		return errors.New("interface doesn't exists")
+	}
+
+	if status {
+		return ethdev.SetLinkUp()
+	}
+	return ethdev.SetLinkDown()
+}
+
+func (di *DpdkInfra) EthdevList(name string) (string, error) {
+	result := ""
+	err := di.ethdevStore.Iterate(func(key string, ethdev *ethdev.Ethdev) error {
+		result += fmt.Sprintf("  %s \n", ethdev.DevName())
+		devInfo, err := ethdev.GetPortInfoString()
+		result += fmt.Sprintf("%s \n", devInfo)
+		result += "\n"
+		return err
+	})
+	return result, err
+}
+
 func (di *DpdkInfra) PipelineCreate(plName string, numaNode int) (err error) {
 	err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
 		_, err = di.pipelineStore.Create(plName, numaNode)

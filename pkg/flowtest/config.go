@@ -11,8 +11,13 @@ import (
 )
 
 type Config struct {
+	Start      bool              `json:"start"`
 	Interfaces []InterfaceConfig `json:"interfaces"`
 	FlowSets   []FlowSetConfig   `json:"flowsets"`
+}
+
+func (c *Config) GetStart() bool {
+	return c.Start
 }
 
 type InterfaceConfig struct {
