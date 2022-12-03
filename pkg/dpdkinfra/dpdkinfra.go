@@ -129,6 +129,18 @@ func (di *DpdkInfra) LinkUpDown(name string, status bool) error {
 	return ethdev.SetLinkDown()
 }
 
+func (di *DpdkInfra) GetPortStatsString(name string) (string, error) {
+	var result string
+	err := di.ethdevStore.Iterate(func(key string, ethdev *ethdev.Ethdev) error {
+		result += fmt.Sprintf("  %s \n", ethdev.DevName())
+		stats, err := ethdev.GetPortStatsString()
+		result += fmt.Sprintf("%s \n", stats)
+		result += "\n"
+		return err
+	})
+	return result, err
+}
+
 func (di *DpdkInfra) EthdevList(name string) (string, error) {
 	result := ""
 	err := di.ethdevStore.Iterate(func(key string, ethdev *ethdev.Ethdev) error {

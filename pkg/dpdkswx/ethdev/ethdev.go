@@ -295,6 +295,24 @@ func (ethdev *Ethdev) SetLinkDown() error {
 	return ethdev.portID.SetLinkDown()
 }
 
+func (ethdev *Ethdev) GetPortStatsString() (string, error) {
+	var stats lled.Stats
+	var info string
+	err := ethdev.portID.StatsGet(&stats)
+	if err != nil {
+		return info, err
+	}
+
+	goStats := stats.Cast()
+
+	info += fmt.Sprintf("\tRX packets %d\tbytes %d\n", goStats.Ipackets, goStats.Ibytes)
+	info += fmt.Sprintf("\tRX errors %d\tmissed %d\tno-mbuf %d\n", goStats.Ierrors, goStats.Imissed, goStats.RxNoMbuf)
+	info += fmt.Sprintf("\tTX packets %d\tbytes %d\n", goStats.Opackets, goStats.Obytes)
+	info += fmt.Sprintf("\tTX errors %d\n", goStats.Oerrors)
+
+	return info, nil
+}
+
 func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	var portInfo DevInfo
 	info := ""
@@ -320,6 +338,20 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	}
 	info += fmt.Sprintf("  Linkspeed (mbps)       : %d \n", linkParams.Speed())
 	info += "\n"
+
+	prom := PromiscRead(ethdev.portID)
+	if prom == 1 {
+		info += fmt.Sprintf("  Promiscuous mode       : %s \n", "on")
+	} else {
+		info += fmt.Sprintf("  Promiscuous mode       : %s \n", "off")
+	}
+	info += "\n"
+
+	var addr = &lled.MACAddr{}
+	err = ethdev.portID.MACAddrGet(addr)
+	if err == nil {
+		info += fmt.Sprintf("  MAC Address            : %s \n", addr.String())
+	}
 
 	err = InfoGet(ethdev.portID, &portInfo)
 	if err != nil {
@@ -430,4 +462,8 @@ func (info *DevInfo) String() string {
 	result += fmt.Sprintf("  dev_cap                : %d \n", info.dev_capa)
 
 	return result
+}
+
+func PromiscRead(pid lled.Port) int {
+	return int(C.rte_eth_promiscuous_get(C.ushort(pid)))
 }

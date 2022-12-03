@@ -31,19 +31,18 @@
     }
   },{
     "name": "sw4",
-    "vdev": {
-      "devname": "virtio_user1",
-      "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw4",
+    "ethdev": {
+      "devname": "0000:04:00.1",
+      "devargs": "",
       "rx": {
-        "mtu": 1500,
         "nqueues": 1,
-        "queuesize": 32,
+        "queuesize": 128,
         "pktmbuf": "MEMPOOL0",
         "promiscuous": true
       },
       "tx": {
         "nqueues": 1,
-        "queuesize": 32
+        "queuesize": 512
       }
     }
   }],
@@ -69,7 +68,7 @@
     },{
       "ifacename": "sw4",
       "rxqueue": 0,
-      "bsz": 1
+      "bsz": 32
     }],
     "outputports": [{
       "ifacename": "sw1",
@@ -84,7 +83,7 @@
     },{
       "ifacename": "sw4",
       "txqueue": 0,
-      "bsz": 1
+      "bsz": 32
     }],
     "start": {
       "tables": [{

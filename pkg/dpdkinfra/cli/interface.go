@@ -26,6 +26,7 @@ func initPmd(parent *cobra.Command) {
 	}
 
 	initPmdShow(pmd)
+	initPmdStats(pmd)
 	initLinkUpDown(pmd)
 	parent.AddCommand(pmd)
 }
@@ -48,6 +49,35 @@ func initPmdShow(parent *cobra.Command) {
 				cmd.PrintErrf("PMD %s show err: %d\n", t, err)
 			}
 			cmd.Printf("Known PMD interfaces:\n%s", list)
+		},
+	}
+	var re, li, si bool
+	show.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
+	show.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for PMD interfaces.")
+	show.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for PMD interfaces.")
+	show.MarkFlagsMutuallyExclusive("long", "short")
+
+	parent.AddCommand(show)
+}
+
+func initPmdStats(parent *cobra.Command) {
+	show := &cobra.Command{
+		Use:     "stats [name]",
+		Short:   "Show statistics of all (or one given) PMD interface(s)",
+		Aliases: []string{"st"},
+		Args:    cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			dpdki := dpdkinfra.Get()
+			t := ""
+			if len(args) == 1 {
+				t = args[0]
+			}
+
+			stats, err := dpdki.GetPortStatsString(t)
+			if err != nil {
+				cmd.PrintErrf("PMD %s stats err: %d\n", t, err)
+			}
+			cmd.Printf("PMD interface statistics:\n%s", stats)
 		},
 	}
 	var re, li, si bool
