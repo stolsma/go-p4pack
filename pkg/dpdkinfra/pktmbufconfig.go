@@ -40,7 +40,7 @@ func (mpc *PktMbufConfig) GetCPUID() int {
 func (dpdki *DpdkInfra) PktMbufWithConfig(m *PktMbufConfig) {
 	// Create PktMbuf memory pool
 	name := m.GetName()
-	err := dpdki.PktMbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
+	_, err := dpdki.PktmbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
 	if err != nil {
 		log.Fatalf("Pktmbuf Mempool %s create err: %d", name, err)
 	}

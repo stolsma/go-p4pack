@@ -18,7 +18,7 @@ func initTap(parent *cobra.Command) {
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
-			err := dpdki.TapCreate(args[0], nil)
+			_, err := dpdki.TapCreate(args[0])
 			if err != nil {
 				cmd.PrintErrf("TAP %s create err: %d\n", args[0], err)
 			}

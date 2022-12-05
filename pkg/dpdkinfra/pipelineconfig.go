@@ -105,7 +105,7 @@ type TableConfig struct {
 func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
 	// Create pipeline
 	pipeName := pipelineConfig.GetName()
-	err := dpdki.PipelineCreate(pipeName, pipelineConfig.GetNumaNode())
+	_, err := dpdki.PipelineCreate(pipeName, pipelineConfig.GetNumaNode())
 	if err != nil {
 		log.Fatalf("%s create err: %d", pipeName, err)
 	}

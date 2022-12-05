@@ -8,6 +8,10 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// TapConfig represents Tap config parameters
+type TapConfig struct {
+}
+
 type InterfaceConfig struct {
 	Name   string     `json:"name"`
 	Tap    *TapConfig `json:"tap"`
@@ -41,7 +45,7 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
 	// create/bind & configure TAP interface devices
 	if ifConfig.Tap != nil {
 		name := ifConfig.GetName()
-		err := dpdki.TapCreate(name, ifConfig.Tap)
+		_, err := dpdki.TapCreate(name)
 		if err != nil {
 			log.Fatalf("TAP %s create err: %d", name, err)
 		}
@@ -66,7 +70,7 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
 		}
 
 		// get Packet buffer memory pool
-		mp := dpdki.mbufStore.Find(vh.Rx.PktMbuf)
+		mp := dpdki.PktmbufStore.Get(vh.Rx.PktMbuf)
 		if mp == nil {
 			log.Fatalf("vhost %s mempool %s not found", name, vh.Rx.PktMbuf)
 		}
@@ -84,7 +88,7 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
 		p.Promiscuous = vh.Rx.Promiscuous
 
 		// create and configure the PMD interface
-		err := dpdki.EthdevCreate(name, &p)
+		_, err := dpdki.EthdevCreate(name, &p)
 		if err != nil {
 			log.Fatalf("vdev/ethdev %s create err: %d", name, err)
 		}
