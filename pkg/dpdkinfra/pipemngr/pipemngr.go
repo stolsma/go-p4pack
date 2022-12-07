@@ -12,7 +12,6 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
 	"github.com/stolsma/go-p4pack/pkg/logging"
-	"github.com/yerden/go-dpdk/mempool"
 )
 
 var log logging.Logger
@@ -64,42 +63,6 @@ func (pm *PipeMngr) PipelineCreate(plName string, numaNode int) (*pipeline.Pipel
 	// add node to list
 	pm.PipelineStore.Set(plName, &pl)
 	return &pl, nil
-}
-
-func (pm *PipeMngr) PipelineAddInputPortTap(plName string, portID int, tap int, mp *mempool.Mempool, mtu int, bsz int) error {
-	pipeline := pm.PipelineStore.Get(plName)
-	if pipeline == nil {
-		return errors.New("pipeline doesn't exists")
-	}
-
-	return pipeline.AddInputPortTap(portID, tap, mp, mtu, bsz)
-}
-
-func (pm *PipeMngr) PipelineAddInputPortEthDev(plName string, portID int, devName string, rxQueue int, bsz int) error {
-	pipeline := pm.PipelineStore.Get(plName)
-	if pipeline == nil {
-		return errors.New("pipeline doesn't exists")
-	}
-
-	return pipeline.AddInputPortEthDev(portID, devName, rxQueue, bsz)
-}
-
-func (pm *PipeMngr) PipelineAddOutputPortTap(plName string, portID int, tap int, bsz int) error {
-	pipeline := pm.PipelineStore.Get(plName)
-	if pipeline == nil {
-		return errors.New("pipeline doesn't exists")
-	}
-
-	return pipeline.AddOutputPortTap(portID, tap, bsz)
-}
-
-func (pm *PipeMngr) PipelineAddOutputPortEthDev(plName string, portID int, devname string, txQueue int, bsz int) error {
-	pipeline := pm.PipelineStore.Get(plName)
-	if pipeline == nil {
-		return errors.New("pipeline doesn't exists")
-	}
-
-	return pipeline.AddOutputPortEthdev(portID, devname, txQueue, bsz)
 }
 
 func (pm *PipeMngr) PipelineBuild(plName string, specfile string) error {

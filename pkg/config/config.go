@@ -16,7 +16,7 @@ import (
 
 type Config struct {
 	BasePath   string
-	PktMbufs   []*dpdkinfra.PktMbufConfig   `json:"pktmbufs"`
+	PktMbufs   []*dpdkinfra.PktmbufConfig   `json:"pktmbufs"`
 	Interfaces []*dpdkinfra.InterfaceConfig `json:"interfaces"`
 	Pipelines  []*dpdkinfra.PipelineConfig  `json:"pipelines"`
 	FlowTest   *flowtest.Config             `json:"flowtest"`

@@ -5,7 +5,7 @@ package dpdkinfra
 
 import "github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 
-type PktMbufConfig struct {
+type PktmbufConfig struct {
 	Name       string `json:"name"`
 	BufferSize uint   `json:"buffersize"`
 	PoolSize   uint32 `json:"poolsize"`
@@ -13,31 +13,31 @@ type PktMbufConfig struct {
 	CPUID      int    `json:"cpuid"`
 }
 
-func (mpc *PktMbufConfig) GetName() string {
+func (mpc *PktmbufConfig) GetName() string {
 	return mpc.Name
 }
 
-func (mpc *PktMbufConfig) GetBufferSize() uint {
+func (mpc *PktmbufConfig) GetBufferSize() uint {
 	if mpc.BufferSize == 0 {
 		mpc.BufferSize = pktmbuf.RteMbufDefaultBufSize
 	}
 	return mpc.BufferSize
 }
 
-func (mpc *PktMbufConfig) GetPoolSize() uint32 {
+func (mpc *PktmbufConfig) GetPoolSize() uint32 {
 	return mpc.PoolSize
 }
 
-func (mpc *PktMbufConfig) GetCacheSize() uint32 {
+func (mpc *PktmbufConfig) GetCacheSize() uint32 {
 	return mpc.CacheSize
 }
 
-func (mpc *PktMbufConfig) GetCPUID() int {
+func (mpc *PktmbufConfig) GetCPUID() int {
 	return mpc.CPUID
 }
 
 // Create pipelines through the DpdkInfra API
-func (dpdki *DpdkInfra) PktMbufWithConfig(m *PktMbufConfig) {
+func (dpdki *DpdkInfra) CreatePktmbufWithConfig(m *PktmbufConfig) {
 	// Create PktMbuf memory pool
 	name := m.GetName()
 	_, err := dpdki.PktmbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())

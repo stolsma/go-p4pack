@@ -11,6 +11,7 @@ package ethdev
 #include <net/if.h>
 
 #include <rte_ethdev.h>
+#include <rte_swx_port_ethdev.h>
 
 */
 import "C"
@@ -21,6 +22,8 @@ import (
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/device"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 	lled "github.com/yerden/go-dpdk/ethdev"
 	"github.com/yerden/go-dpdk/mempool"
@@ -39,7 +42,7 @@ const RetaConfSize = (EthRssRetaSize512 / EthRetaGroupSize)
 
 type ParamsRss []uint16
 
-type LinkParams struct {
+type Params struct {
 	DevName           string
 	DevArgs           string
 	DevHotplugEnabled bool
@@ -61,16 +64,15 @@ type LinkParams struct {
 
 // Ethdev represents a Ethdev record
 type Ethdev struct {
-	name    string
+	*device.Device
 	devName string
 	portID  lled.Port
 	nRxQ    uint16
 	nTxQ    uint16
-	clean   func()
 }
 
 // Create Ethdev interface. Returns error when something went wrong.
-func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error {
+func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	var portInfo DevInfo
 	var status C.int
 	var res error
@@ -225,7 +227,9 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 	}
 
 	// Node fill in
-	ethdev.name = name
+	ethdev.Device = &device.Device{}
+	ethdev.SetType("PMD")
+	ethdev.SetName(name)
 	ethdev.portID = portID
 	ethdev.devName, res = portID.Name()
 	if res != nil {
@@ -233,7 +237,10 @@ func (ethdev *Ethdev) Init(name string, params *LinkParams, clean func()) error 
 	}
 	ethdev.nRxQ = params.Rx.NQueues
 	ethdev.nTxQ = params.Tx.NQueues
-	ethdev.clean = clean
+
+	ethdev.SetPipelineOutPort(device.NotBound)
+	ethdev.SetPipelineInPort(device.NotBound)
+	ethdev.SetClean(clean)
 
 	return nil
 }
@@ -248,8 +255,8 @@ func (ethdev *Ethdev) Free() {
 	ethdev.portID.Stop()
 
 	// call given clean callback function if given during init
-	if ethdev.clean != nil {
-		ethdev.clean()
+	if ethdev.Clean() != nil {
+		ethdev.Clean()()
 	}
 }
 
@@ -276,6 +283,42 @@ func rssSetup(portID lled.Port, retaSize uint16, rss ParamsRss) int {
 	// RETA update
 	status = (int)(C.rte_eth_dev_rss_reta_update((C.ushort)(portID), &retaConf[0], (C.ushort)(retaSize)))
 	return status
+}
+
+// bind to given pipeline input port
+func (ethdev *Ethdev) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
+	var params C.struct_rte_swx_port_ethdev_reader_params
+
+	if ethdev.PipelineInPort() != device.NotBound {
+		return errors.New("port already bound")
+	}
+	ethdev.SetPipelineIn(pl.GetName())
+	ethdev.SetPipelineInPort(portID)
+
+	params.dev_name = C.CString(ethdev.DevName())
+	defer C.free(unsafe.Pointer(params.dev_name))
+	params.queue_id = C.ushort(rxq)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortInConfig(portID, "ethdev", unsafe.Pointer(&params))
+}
+
+// bind to given pipeline output port
+func (ethdev *Ethdev) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
+	var params C.struct_rte_swx_port_ethdev_writer_params
+
+	if ethdev.PipelineOutPort() != device.NotBound {
+		return errors.New("port already bound")
+	}
+	ethdev.SetPipelineOut(pl.GetName())
+	ethdev.SetPipelineOutPort(portID)
+
+	params.dev_name = C.CString(ethdev.DevName())
+	defer C.free(unsafe.Pointer(params.dev_name))
+	params.queue_id = C.ushort(txq)
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortOutConfig(portID, "ethdev", unsafe.Pointer(&params))
 }
 
 func (ethdev *Ethdev) IsUp() (bool, error) {
@@ -305,10 +348,10 @@ func (ethdev *Ethdev) GetPortStatsString() (string, error) {
 
 	goStats := stats.Cast()
 
-	info += fmt.Sprintf("\tRX packets %d\tbytes %d\n", goStats.Ipackets, goStats.Ibytes)
-	info += fmt.Sprintf("\tRX errors %d\tmissed %d\tno-mbuf %d\n", goStats.Ierrors, goStats.Imissed, goStats.RxNoMbuf)
-	info += fmt.Sprintf("\tTX packets %d\tbytes %d\n", goStats.Opackets, goStats.Obytes)
-	info += fmt.Sprintf("\tTX errors %d\n", goStats.Oerrors)
+	info += fmt.Sprintf("\tRX packets: %-20d bytes : %-20d\n", goStats.Ipackets, goStats.Ibytes)
+	info += fmt.Sprintf("\tRX errors : %-20d missed: %-20d RX no mbuf: %-20d\n", goStats.Ierrors, goStats.Imissed, goStats.RxNoMbuf)
+	info += fmt.Sprintf("\tTX packets: %-20d bytes : %-20d\n", goStats.Opackets, goStats.Obytes)
+	info += fmt.Sprintf("\tTX errors : %-20d\n", goStats.Oerrors)
 
 	return info, nil
 }

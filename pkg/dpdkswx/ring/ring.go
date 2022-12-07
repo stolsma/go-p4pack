@@ -5,6 +5,7 @@ package ring
 
 /*
 #include <rte_ring.h>
+#include <rte_swx_port_ring.h>
 
 */
 import "C"
@@ -13,6 +14,8 @@ import (
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/device"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 )
 
 const (
@@ -27,38 +30,43 @@ const (
 	ExactSize = C.RING_F_EXACT_SZ
 )
 
-// Ring represents a Ring record
-type Ring struct {
-	name  string
-	r     *C.struct_rte_ring
-	size  uint
-	clean func()
+type Params struct {
+	size     uint
+	numaNode uint32
 }
 
-// Create Ring interface. Returns a pointer to a Ring structure or nil with error.
-func (r *Ring) Init(name string, size uint, numaNode uint32, clean func()) error {
+// Ring represents a Ring device
+type Ring struct {
+	*device.Device
+	r    *C.struct_rte_ring
+	size uint
+}
+
+// Create and initialize Ring device
+func (r *Ring) Init(name string, params *Params, clean func()) error {
 	const flags = SingleProducer | SingleConsumer
 
 	cname := C.CString(name)
 	defer C.free(unsafe.Pointer(cname))
 
 	// Resource create
-	ring := C.rte_ring_create(cname, (C.uint)(size), (C.int)(numaNode), (C.uint)(flags))
+	ring := C.rte_ring_create(cname, (C.uint)(params.size), (C.int)(params.numaNode), (C.uint)(flags))
 	if r == nil {
 		return errors.New("Ring creation error")
 	}
 
 	// Node fill in
-	r.name = name
+	r.Device = &device.Device{}
+	r.SetType("RING")
+	r.SetName(name)
 	r.r = ring
-	r.size = size
-	r.clean = clean
+	r.size = params.size
+
+	r.SetPipelineOutPort(device.NotBound)
+	r.SetPipelineInPort(device.NotBound)
+	r.SetClean(clean)
 
 	return nil
-}
-
-func (r *Ring) Name() string {
-	return r.name
 }
 
 func (r *Ring) Ring() unsafe.Pointer {
@@ -74,8 +82,8 @@ func (r *Ring) Free() {
 	C.rte_ring_free(r.r)
 
 	// call given clean callback function if given during init
-	if r.clean != nil {
-		r.clean()
+	if r.Clean() != nil {
+		r.Clean()()
 	}
 }
 
@@ -94,11 +102,49 @@ func Lookup(name string, clean func()) (*Ring, error) {
 
 	// Node fill in
 	r := &Ring{
-		name:  name,
-		r:     cr,
-		size:  size,
-		clean: clean,
+		Device: &device.Device{},
+		r:      cr,
+		size:   size,
 	}
+	r.SetType("RING")
+	r.SetName(name)
+	r.SetPipelineOutPort(device.NotBound)
+	r.SetPipelineInPort(device.NotBound)
+	r.SetClean(clean)
 
 	return r, nil
+}
+
+// bind to given pipeline input port
+func (r *Ring) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
+	var params C.struct_rte_swx_port_ring_reader_params
+
+	if r.PipelineInPort() != device.NotBound {
+		return errors.New("port already bound")
+	}
+	r.SetPipelineIn(pl.GetName())
+	r.SetPipelineInPort(portID)
+
+	params.name = C.CString(r.Name())
+	defer C.free(unsafe.Pointer(params.name))
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortInConfig(portID, "ring", unsafe.Pointer(&params))
+}
+
+// bind to given pipeline output port
+func (r *Ring) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
+	var params C.struct_rte_swx_port_ring_writer_params
+
+	if r.PipelineOutPort() != device.NotBound {
+		return errors.New("port already bound")
+	}
+	r.SetPipelineOut(pl.GetName())
+	r.SetPipelineOutPort(portID)
+
+	params.name = C.CString(r.Name())
+	defer C.free(unsafe.Pointer(params.name))
+	params.burst_size = (C.uint)(bsz)
+
+	return pl.PortOutConfig(portID, "ring", unsafe.Pointer(&params))
 }

@@ -51,18 +51,18 @@ func main() {
 
 	// create Packet Mbuf mempools
 	for _, m := range conf.PktMbufs {
-		dpdki.PktMbufWithConfig(m)
+		dpdki.CreatePktmbufWithConfig(m)
 	}
 
 	// create dpdkinfra interfaces through the API
 	for _, i := range conf.Interfaces {
-		dpdki.InterfaceWithConfig(i)
+		dpdki.CreateInterfaceWithConfig(i)
 	}
 
 	// create and start dpdkinfra pipelines through the API
 	for _, p := range conf.Pipelines {
 		p.SetBasePath(conf.GetBasePath())
-		dpdki.PipelineWithConfig(p)
+		dpdki.CreatePipelineWithConfig(p)
 	}
 
 	// define and start flowtests if requested

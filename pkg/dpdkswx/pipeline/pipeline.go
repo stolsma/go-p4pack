@@ -65,7 +65,6 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 	"github.com/stolsma/go-p4pack/pkg/logging"
-	"github.com/yerden/go-dpdk/mempool"
 )
 
 var log logging.Logger
@@ -121,22 +120,6 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	return nil
 }
 
-func (pl *Pipeline) GetName() string {
-	return pl.name
-}
-
-func (pl *Pipeline) GetThreadID() uint {
-	return pl.threadID
-}
-
-func (pl *Pipeline) GetPipeline() unsafe.Pointer {
-	return unsafe.Pointer(pl.p)
-}
-
-func (pl *Pipeline) GetTimerPeriodms() uint {
-	return pl.timerPeriodms
-}
-
 // Pipeline struct free. If internal pipeline struct pointer is nil, no operation is performed only clean fn is called
 // if set in structure.
 func (pl *Pipeline) Free() {
@@ -154,6 +137,22 @@ func (pl *Pipeline) Free() {
 	}
 }
 
+func (pl *Pipeline) GetName() string {
+	return pl.name
+}
+
+func (pl *Pipeline) GetThreadID() uint {
+	return pl.threadID
+}
+
+func (pl *Pipeline) GetPipeline() unsafe.Pointer {
+	return unsafe.Pointer(pl.p)
+}
+
+func (pl *Pipeline) GetTimerPeriodms() uint {
+	return pl.timerPeriodms
+}
+
 func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Pointer) error {
 	ptype := C.CString(portType)
 	defer C.free(unsafe.Pointer(ptype))
@@ -166,51 +165,6 @@ func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Poin
 	return nil
 }
 
-// pipeline PIPELINE0 port in 0 tap sw0 mempool MEMPOOL0 mtu 1500 bsz 1
-func (pl *Pipeline) AddInputPortTap(portID int, tap int, pm *mempool.Mempool, mtu int, bsz int) error {
-	var params C.struct_rte_swx_port_fd_reader_params
-
-	if tap == 0 || pm == nil {
-		return nil
-	}
-
-	params.fd = C.int(tap)
-	params.mempool = (*C.struct_rte_mempool)(unsafe.Pointer(pm))
-	params.mtu = (C.uint)(mtu)
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortInConfig(portID, "fd", unsafe.Pointer(&params))
-}
-
-func (pl *Pipeline) AddInputPortEthDev(portID int, devName string, rxq int, bsz int) error {
-	var params C.struct_rte_swx_port_ethdev_reader_params
-
-	if devName == "" {
-		return nil
-	}
-
-	params.dev_name = C.CString(devName)
-	defer C.free(unsafe.Pointer(params.dev_name))
-	params.queue_id = C.ushort(rxq)
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortInConfig(portID, "ethdev", unsafe.Pointer(&params))
-}
-
-func (pl *Pipeline) AddInputPortRing(portID int, ringName string, bsz int) error {
-	var params C.struct_rte_swx_port_ring_reader_params
-
-	if ringName == "" {
-		return nil
-	}
-
-	params.name = C.CString(ringName)
-	defer C.free(unsafe.Pointer(params.name))
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortInConfig(portID, "ring", unsafe.Pointer(&params))
-}
-
 func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Pointer) error {
 	ptype := C.CString(portType)
 	defer C.free(unsafe.Pointer(ptype))
@@ -221,49 +175,6 @@ func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Poi
 		return common.Err(status)
 	}
 	return nil
-}
-
-// pipeline PIPELINE0 port out 0 tap sw0 bsz 1
-func (pl *Pipeline) AddOutputPortTap(portID int, tap int, bsz int) error {
-	var params C.struct_rte_swx_port_fd_writer_params
-
-	if tap == 0 {
-		return nil
-	}
-
-	params.fd = C.int(tap)
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortOutConfig(portID, "fd", unsafe.Pointer(&params))
-}
-
-func (pl *Pipeline) AddOutputPortEthdev(portID int, devName string, txq int, bsz int) error {
-	var params C.struct_rte_swx_port_ethdev_writer_params
-
-	if devName == "" {
-		return nil
-	}
-
-	params.dev_name = C.CString(devName)
-	defer C.free(unsafe.Pointer(params.dev_name))
-	params.queue_id = C.ushort(txq)
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortOutConfig(portID, "ethdev", unsafe.Pointer(&params))
-}
-
-func (pl *Pipeline) AddOutputPortRing(portID int, ringName string, bsz int) error {
-	var params C.struct_rte_swx_port_ring_writer_params
-
-	if ringName == "" {
-		return nil
-	}
-
-	params.name = C.CString(ringName)
-	defer C.free(unsafe.Pointer(params.name))
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortOutConfig(portID, "ring", unsafe.Pointer(&params))
 }
 
 func (pl *Pipeline) BuildFromSpec(specfile string) error {

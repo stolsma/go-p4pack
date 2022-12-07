@@ -8,10 +8,20 @@
   }],
   "interfaces" : [{
     "name": "sw1",
-    "tap": {}
+    "tap": {
+      "rx": {
+        "pktmbuf": "MEMPOOL0",
+        "mtu": 1514
+      }
+    }
   },{
     "name": "sw2",
-    "tap": {}
+    "tap": {
+      "rx": {
+        "pktmbuf": "MEMPOOL0",
+        "mtu": 1514
+      }
+    }
   },{
     "name": "sw3",
     "vdev": {
@@ -54,13 +64,11 @@
     "spec": "./default.spec",
     "inputports": [{
       "ifacename": "sw1",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
+      "rxqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw2",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
+      "rxqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw3",
@@ -73,9 +81,11 @@
     }],
     "outputports": [{
       "ifacename": "sw1",
+      "txqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw2",
+      "txqueue": 0,
       "bsz": 1
     },{
       "ifacename": "sw3",

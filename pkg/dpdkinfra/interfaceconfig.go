@@ -5,22 +5,27 @@ package dpdkinfra
 
 import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 	"github.com/vishvananda/netlink"
 )
 
-// TapConfig represents Tap config parameters
-type TapConfig struct {
-}
-
 type InterfaceConfig struct {
 	Name   string     `json:"name"`
-	Tap    *TapConfig `json:"tap"`
+	Tap    *TapParams `json:"tap"`
 	Vdev   *PMDParams `json:"vdev"`
 	EthDev *PMDParams `json:"ethdev"`
 }
 
 func (i *InterfaceConfig) GetName() string {
 	return i.Name
+}
+
+// TapConfig represents Tap config parameters
+type TapParams struct {
+	Rx *struct {
+		Mtu     int    `json:"mtu"`
+		PktMbuf string `json:"pktmbuf"`
+	}
 }
 
 type PMDParams struct {
@@ -40,12 +45,23 @@ type PMDParams struct {
 	}
 }
 
-// Create/bind devices (interfaces) through the DpdkInfra API
-func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
+// Create a interface with a given interface configuration
+func (dpdki *DpdkInfra) CreateInterfaceWithConfig(ifConfig *InterfaceConfig) {
 	// create/bind & configure TAP interface devices
 	if ifConfig.Tap != nil {
+		var tp tap.Params
 		name := ifConfig.GetName()
-		_, err := dpdki.TapCreate(name)
+
+		// get Packet buffer memory pool & MTU
+		mpName := ifConfig.Tap.Rx.PktMbuf
+		tp.Pktmbuf = dpdki.PktmbufStore.Get(mpName)
+		if tp.Pktmbuf == nil {
+			log.Fatalf("vhost %s mempool %s not found", name, mpName)
+		}
+		tp.Mtu = ifConfig.Tap.Rx.Mtu
+
+		// create tap
+		_, err := dpdki.TapCreate(name, &tp)
 		if err != nil {
 			log.Fatalf("TAP %s create err: %d", name, err)
 		}
@@ -59,9 +75,9 @@ func (dpdki *DpdkInfra) InterfaceWithConfig(ifConfig *InterfaceConfig) {
 	// create and/or bind & configure PMD devices to this environment
 	if ifConfig.Vdev != nil || ifConfig.EthDev != nil {
 		var vh *PMDParams
-		var p ethdev.LinkParams
-
+		var p ethdev.Params
 		name := ifConfig.GetName()
+
 		if ifConfig.Vdev != nil {
 			vh = ifConfig.Vdev
 			p.DevHotplugEnabled = true

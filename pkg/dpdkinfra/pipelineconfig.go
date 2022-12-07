@@ -48,47 +48,37 @@ func (pc *PipelineConfig) GetThreadID() uint {
 
 type InPortConfig struct {
 	IfaceName string `json:"ifacename"`
-	PktMbuf   string `json:"pktmbuf"`
-	MTU       int    `json:"mtu"`
-	RxQueue   int    `json:"rxqueue"`
-	Bsz       int    `json:"bsz"`
+	RxQueue   uint   `json:"rxqueue"`
+	Bsz       uint   `json:"bsz"`
 }
 
 func (pc *InPortConfig) GetIfaceName() string {
 	return pc.IfaceName
 }
 
-func (pc *InPortConfig) GetPktMbuf() string {
-	return pc.PktMbuf
-}
-
-func (pc *InPortConfig) GetMTU() int {
-	return pc.MTU
-}
-
-func (pc *InPortConfig) GetRxQueue() int {
+func (pc *InPortConfig) GetRxQueue() uint {
 	return pc.RxQueue
 }
 
-func (pc *InPortConfig) GetBsz() int {
+func (pc *InPortConfig) GetBsz() uint {
 	return pc.Bsz
 }
 
 type OutPortConfig struct {
 	IfaceName string `json:"ifacename"`
-	TxQueue   int    `json:"txqueue"`
-	Bsz       int    `json:"bsz"`
+	TxQueue   uint   `json:"txqueue"`
+	Bsz       uint   `json:"bsz"`
 }
 
 func (pc *OutPortConfig) GetIfaceName() string {
 	return pc.IfaceName
 }
 
-func (pc *OutPortConfig) GetTxQueue() int {
+func (pc *OutPortConfig) GetTxQueue() uint {
 	return pc.TxQueue
 }
 
-func (pc *OutPortConfig) GetBsz() int {
+func (pc *OutPortConfig) GetBsz() uint {
 	return pc.Bsz
 }
 
@@ -101,36 +91,46 @@ type TableConfig struct {
 	Data []string `json:"data"`
 }
 
-// Create pipelines through the DpdkInfra API
-func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
+// Create a pipeline with a given pipeline configuration
+func (dpdki *DpdkInfra) CreatePipelineWithConfig(pipelineConfig *PipelineConfig) {
 	// Create pipeline
 	pipeName := pipelineConfig.GetName()
-	_, err := dpdki.PipelineCreate(pipeName, pipelineConfig.GetNumaNode())
+	pl, err := dpdki.PipelineCreate(pipeName, pipelineConfig.GetNumaNode())
 	if err != nil {
 		log.Fatalf("%s create err: %d", pipeName, err)
 	}
 	log.Infof("%s created!", pipeName)
 
 	// Add input ports to pipeline
-	// pipeline PIPELINE0 port in <portindex> tap <tapname> mempool MEMPOOL0 mtu 1500 bsz 1
 	for i, t := range pipelineConfig.InputPorts {
-		name := t.GetIfaceName()
-		err = dpdki.PipelineAddInputPort(pipeName, i, name, t.GetPktMbuf(), t.GetMTU(), t.GetRxQueue(), t.GetBsz())
-		if err != nil {
-			log.Fatalf("AddInPort %s:%s err: %d", pipeName, name, err)
+		pName := t.GetIfaceName()
+		port := dpdki.GetPort(pName)
+		if port == nil {
+			log.Fatalf("Pipeconfig %s input device %s does not exist", pipeName, pName)
 		}
-		log.Infof("AddInPort %s:%s ready!", pipeName, name)
+
+		err = port.BindToPipelineInputPort(pl, i, t.GetRxQueue(), t.GetBsz())
+		if err != nil {
+			log.Fatalf("AddInPort %s:%s err: %d", pipeName, pName, err)
+		}
+
+		log.Infof("AddInPort %s:%s ready!", pipeName, pName)
 	}
 
 	// Add output ports to pipeline
-	// pipeline PIPELINE0 port out 0 tap sw0 bsz 1
 	for i, t := range pipelineConfig.OutputPorts {
-		name := t.GetIfaceName()
-		err = dpdki.PipelineAddOutputPort(pipeName, i, name, t.GetTxQueue(), t.GetBsz())
-		if err != nil {
-			log.Fatalf("AddOutPort %s:%s err: %d", pipeName, name, err)
+		pName := t.GetIfaceName()
+		port := dpdki.GetPort(pName)
+		if port == nil {
+			log.Fatalf("Pipeconfig %s input device %s does not exist", pipeName, pName)
 		}
-		log.Infof("AddOutPort %s:%s ready!", pipeName, name)
+
+		err = port.BindToPipelineOutputPort(pl, i, t.GetTxQueue(), t.GetBsz())
+		if err != nil {
+			log.Fatalf("AddOutPort %s:%s err: %d", pipeName, pName, err)
+		}
+
+		log.Infof("AddOutPort %s:%s ready!", pipeName, pName)
 	}
 
 	// Build the pipeline program
@@ -148,7 +148,6 @@ func (dpdki *DpdkInfra) PipelineWithConfig(pipelineConfig *PipelineConfig) {
 	log.Infof("Pipeline %s commited!", pipeName)
 
 	// And run pipeline
-	// thread 1 pipeline PIPELINE0 enable
 	err = dpdki.PipelineEnable(pipeName, pipelineConfig.GetThreadID())
 	if err != nil {
 		log.Fatalf("PipelineEnable %s err: %d", pipeName, err)

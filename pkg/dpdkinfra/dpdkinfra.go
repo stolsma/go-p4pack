@@ -102,30 +102,3 @@ func (di *DpdkInfra) PktmbufCreate(
 	log.Infof("pktmbuf %s created", name)
 	return &pm, nil
 }
-
-func (di *DpdkInfra) PipelineAddInputPort(plName string, portID int, portName string, mpName string, mtu int, rxQueue int, bsz int) error {
-	if tap := di.TapStore.Get(portName); tap != nil {
-		pktmbuf := di.PktmbufStore.Get(mpName)
-		if pktmbuf == nil {
-			return errors.New("mempool doesn't exists")
-		}
-
-		return di.PipelineAddInputPortTap(plName, portID, int(tap.Fd()), pktmbuf.Mempool(), mtu, bsz)
-	}
-
-	if ethdev := di.EthdevStore.Get(portName); ethdev != nil {
-		return di.PipelineAddInputPortEthDev(plName, portID, ethdev.DevName(), rxQueue, bsz)
-	}
-
-	return errors.New("interface doesn't exists")
-}
-
-func (di *DpdkInfra) PipelineAddOutputPort(plName string, portID int, pName string, txQueue int, bsz int) error {
-	if tap := di.TapStore.Get(pName); tap != nil {
-		return di.PipelineAddOutputPortTap(plName, portID, int(tap.Fd()), bsz)
-	}
-	if ethdev := di.EthdevStore.Get(pName); ethdev != nil {
-		return di.PipelineAddOutputPortEthDev(plName, portID, ethdev.DevName(), txQueue, bsz)
-	}
-	return errors.New("interface doesn't exists")
-}
