@@ -65,13 +65,13 @@ type Params struct {
 // Ethdev represents a Ethdev record
 type Ethdev struct {
 	*device.Device
+	*lled.Port
 	devName string
-	portID  lled.Port
 	nRxQ    uint16
 	nTxQ    uint16
 }
 
-// Create Ethdev interface. Returns error when something went wrong.
+// Create and/or configure DPDK Ethdev device. Returns error when something went wrong.
 func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	var portInfo DevInfo
 	var status C.int
@@ -84,34 +84,35 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		return nil
 	}
 
-	devName := C.CString(params.DevName)
-	defer C.free(unsafe.Pointer(devName))
-	devArgs := C.CString(params.DevArgs)
-	defer C.free(unsafe.Pointer(devArgs))
+	cDevName := C.CString(params.DevName)
+	defer C.free(unsafe.Pointer(cDevName))
+	cDevArgs := C.CString(params.DevArgs)
+	defer C.free(unsafe.Pointer(cDevArgs))
 
 	// Performing Device Hotplug and valid for only VDEVs
 	if params.DevHotplugEnabled {
 		vdev := C.CString("vdev")
-		status = C.rte_eal_hotplug_add(vdev, devName, devArgs)
+		status = C.rte_eal_hotplug_add(vdev, cDevName, cDevArgs)
 		C.free(unsafe.Pointer(vdev))
 		if status != 0 {
 			return fmt.Errorf("link init: dev:%s hotplug add failed (%w)", params.DevName, common.Err(status))
 		}
 	}
 
-	// get port id
+	// get port id and save to this struct!
 	portID, res := lled.GetPortByName(params.DevName)
 	if res != nil {
 		return res
 	}
+	ethdev.Port = &portID
 
-	// get device information
-	res = InfoGet(portID, &portInfo)
+	// get ethDev device information
+	res = ethdev.InfoGet(&portInfo)
 	if res != nil {
 		return res
 	}
 
-	// check number of queues to use
+	// check maximum number of queues to configure to the max supported queues on device
 	if params.Rx.NQueues > portInfo.MaxRxQueues() || params.Rx.NQueues > portInfo.MaxTxQueues() {
 		return errors.New("link init: Number of Tx or Rx queues to large")
 	}
@@ -130,16 +131,14 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		}
 	}
 
-	//
-	// Port Resource create
-	//
-
 	// configure port config attributes to new port config
+	// TODO Check if device supports it!
 	var mtu uint32 = 9000 - (EtherHdrLen + EtherCRCLen)
 	if params.Rx.Mtu > 0 {
 		mtu = params.Rx.Mtu
 	}
 
+	// define device rss parameters
 	var optRss = lled.OptRss(lled.RssConf{})
 	var rxMqMode = EthMqRxNone
 	if rss != nil {
@@ -149,6 +148,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		})
 	}
 
+	// configure the ethdev device
 	res = portID.DevConfigure(params.Tx.NQueues, params.Tx.NQueues,
 		lled.OptLinkSpeeds(0),
 		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: mtu, SplitHdrSize: 0}),
@@ -171,12 +171,13 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		}
 	}
 
+	// is the ethdev device connected to a specific CPU Socket?
 	cpuID := portID.SocketID()
 	if cpuID == C.SOCKET_ID_ANY {
 		cpuID = 0
 	}
 
-	// Port RX queues setup
+	// Device RX queues setup
 	for i := 0; uint16(i) < params.Rx.NQueues; i++ {
 		status = C.rte_eth_rx_queue_setup(
 			(C.ushort)(portID),
@@ -191,7 +192,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		}
 	}
 
-	// Port TX queues setup
+	// Device TX queues setup
 	for i := 0; uint16(i) < params.Tx.NQueues; i++ {
 		status = C.rte_eth_tx_queue_setup(
 			(C.ushort)(portID), (C.ushort)(i), (C.ushort)(params.Tx.QueueSize), (C.uint)(cpuID), nil,
@@ -201,7 +202,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		}
 	}
 
-	// Port start
+	// Device start
 	res = portID.Start()
 	if res != nil {
 		return res
@@ -216,7 +217,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		}
 	}
 
-	// Port link up
+	// Device link up
 	res = portID.SetLinkUp()
 	if res != nil {
 		if !errors.Is(res, syscall.ENOTSUP) {
@@ -230,7 +231,6 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	ethdev.Device = &device.Device{}
 	ethdev.SetType("PMD")
 	ethdev.SetName(name)
-	ethdev.portID = portID
 	ethdev.devName, res = portID.Name()
 	if res != nil {
 		return res
@@ -245,6 +245,10 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	return nil
 }
 
+func (ethdev *Ethdev) Name() string {
+	return ethdev.Device.Name()
+}
+
 func (ethdev *Ethdev) DevName() string {
 	return ethdev.devName
 }
@@ -252,7 +256,7 @@ func (ethdev *Ethdev) DevName() string {
 // Free deletes the current Ethdev record and calls the clean callback function given at init
 func (ethdev *Ethdev) Free() {
 	// Release all resources for this port
-	ethdev.portID.Stop()
+	ethdev.Stop()
 
 	// call given clean callback function if given during init
 	if ethdev.Clean() != nil {
@@ -322,7 +326,7 @@ func (ethdev *Ethdev) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int
 }
 
 func (ethdev *Ethdev) IsUp() (bool, error) {
-	linkParams, result := ethdev.portID.EthLinkGet()
+	linkParams, result := ethdev.EthLinkGet()
 	if result != nil {
 		return false, result
 	}
@@ -331,17 +335,35 @@ func (ethdev *Ethdev) IsUp() (bool, error) {
 }
 
 func (ethdev *Ethdev) SetLinkUp() error {
-	return ethdev.portID.SetLinkUp()
+	err := ethdev.Port.SetLinkUp()
+	if err != nil {
+		if !errors.Is(err, syscall.ENOTSUP) {
+			return err
+		}
+		log.Debugf("PMD %v does not support LinkUp operation trying kernel", ethdev.Name())
+		// TODO implement try netlink portup!!
+	}
+
+	return nil
 }
 
 func (ethdev *Ethdev) SetLinkDown() error {
-	return ethdev.portID.SetLinkDown()
+	err := ethdev.Port.SetLinkDown()
+	if err != nil {
+		if !errors.Is(err, syscall.ENOTSUP) {
+			return err
+		}
+		log.Debugf("PMD %v does not support LinkDown operation trying kernel", ethdev.Name())
+		// TODO implement try netlink portdown!!
+	}
+
+	return nil
 }
 
 func (ethdev *Ethdev) GetPortStatsString() (string, error) {
 	var stats lled.Stats
 	var info string
-	err := ethdev.portID.StatsGet(&stats)
+	err := ethdev.Port.StatsGet(&stats)
 	if err != nil {
 		return info, err
 	}
@@ -360,7 +382,7 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	var portInfo DevInfo
 	info := ""
 
-	linkParams, err := ethdev.portID.EthLinkGet()
+	linkParams, err := ethdev.EthLinkGet()
 	if err != nil {
 		return "", err
 	}
@@ -382,21 +404,16 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	info += fmt.Sprintf("  Linkspeed (mbps)       : %d \n", linkParams.Speed())
 	info += "\n"
 
-	prom := PromiscRead(ethdev.portID)
-	if prom == 1 {
-		info += fmt.Sprintf("  Promiscuous mode       : %s \n", "on")
-	} else {
-		info += fmt.Sprintf("  Promiscuous mode       : %s \n", "off")
-	}
+	info += fmt.Sprintf("  Promiscuous mode       : %s \n", PromiscuousModeStr[ethdev.PromiscuousGet()])
 	info += "\n"
 
 	var addr = &lled.MACAddr{}
-	err = ethdev.portID.MACAddrGet(addr)
+	err = ethdev.MACAddrGet(addr)
 	if err == nil {
 		info += fmt.Sprintf("  MAC Address            : %s \n", addr.String())
 	}
 
-	err = InfoGet(ethdev.portID, &portInfo)
+	err = ethdev.InfoGet(&portInfo)
 	if err != nil {
 		return "", err
 	}
@@ -462,8 +479,14 @@ func (info *DevInfo) FlowTypeRssOffloads() uint64 {
 	return uint64(info.flow_type_rss_offloads)
 }
 
-func InfoGet(pid lled.Port, info *DevInfo) error {
-	return common.Err(C.rte_eth_dev_info_get(C.ushort(pid), (*C.struct_rte_eth_dev_info)(info)))
+// MinMTU returns Device minimum supported MTU size.
+func (info *DevInfo) MinMTU() uint16 {
+	return uint16(info.min_mtu)
+}
+
+// MaxMTU returns Device maximum supported MTU size.
+func (info *DevInfo) MaxMTU() uint16 {
+	return uint16(info.min_mtu)
 }
 
 func (info *DevInfo) String() string {
@@ -507,6 +530,16 @@ func (info *DevInfo) String() string {
 	return result
 }
 
-func PromiscRead(pid lled.Port) int {
-	return int(C.rte_eth_promiscuous_get(C.ushort(pid)))
+//
+// Extra Ethdev methods to be upstreamed
+//
+
+func (ethdev *Ethdev) InfoGet(info *DevInfo) error {
+	return common.Err(C.rte_eth_dev_info_get(C.ushort(*ethdev.Port), (*C.struct_rte_eth_dev_info)(info)))
+}
+
+var PromiscuousModeStr = [2]string{0: "off", 1: "on"}
+
+func (ethdev *Ethdev) PromiscuousGet() int {
+	return int(C.rte_eth_promiscuous_get(C.ushort(*ethdev.Port)))
 }

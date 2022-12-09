@@ -5,7 +5,6 @@ package pipemngr
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra/store"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
@@ -108,42 +107,73 @@ func (pm *PipeMngr) TableEntryAdd(plName string, tableName string, line string) 
 	return err
 }
 
-// get pipeline info. If plName is filled then that specific pipeline info is retrieved else the info
+var ErrPipelineInfoGet = errors.New("pipeline info couldn't be retrieved")
+
+type PipelineInfoList map[string]*pipeline.Info
+
+// get pipeline info list. If plName is filled then that specific pipeline info is retrieved else the info
 // of all pipelines is retrieved
-func (pm *PipeMngr) PipelineInfo(plName string) (string, error) {
+func (pm *PipeMngr) PipelineInfo(plName string) (PipelineInfoList, error) {
+	result := make(PipelineInfoList, 0)
+
 	if plName != "" {
 		pl := pm.PipelineStore.Get(plName)
 		if pl == nil {
-			return "", errors.New("pipeline doesn't exists")
+			return result, errors.New("pipeline doesn't exists")
 		}
-		return pl.Info(), nil
+
+		pli, err := pl.PipelineInfoGet()
+		if err != nil {
+			return result, ErrPipelineInfoGet
+		}
+
+		result[pl.GetName()] = pli
+
+		return result, nil
 	}
 
-	result := ""
 	err := pm.PipelineStore.Iterate(func(key string, pl *pipeline.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pl.GetName())
-		result += pl.Info()
+		pli, err := pl.PipelineInfoGet()
+		if err != nil {
+			return ErrPipelineInfoGet
+		}
+
+		result[pl.GetName()] = pli
+
 		return nil
 	})
 
 	return result, err
 }
 
+type PipelineStatsList map[string]*pipeline.Stats
+
 // get pipeline statistics. If plName is filled then that specific pipeline statistics is retrieved else the statistics
 // of all pipelines is retrieved
-func (pm *PipeMngr) PipelineStats(plName string) (string, error) {
+func (pm *PipeMngr) PipelineStats(plName string) (PipelineStatsList, error) {
+	result := make(PipelineStatsList)
 	if plName != "" {
-		pipeline := pm.PipelineStore.Get(plName)
-		if pipeline == nil {
-			return "", errors.New("pipeline doesn't exists")
+		pl := pm.PipelineStore.Get(plName)
+		if pl == nil {
+			return nil, errors.New("pipeline doesn't exists")
 		}
-		return pipeline.Stats(), nil
+
+		stats, err := pl.StatsRead()
+		if err != nil {
+			return nil, err
+		}
+
+		result[pl.GetName()] = stats
+		return result, nil
 	}
 
-	result := ""
 	err := pm.PipelineStore.Iterate(func(key string, pl *pipeline.Pipeline) error {
-		result += fmt.Sprintf("%s: \n", pl.GetName())
-		result += pl.Stats()
+		stats, err := pl.StatsRead()
+		if err != nil {
+			return err
+		}
+
+		result[pl.GetName()] = stats
 		return nil
 	})
 

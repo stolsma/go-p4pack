@@ -1,6 +1,10 @@
+// Copyright 2022 - Sander Tolsma. All rights reserved
+// SPDX-License-Identifier: Apache-2.0
+
 package cli
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,21 +13,20 @@ import (
 	"golang.org/x/net/context"
 )
 
-const (
-	ETX = 0x3 // control-C
-)
-
 func initPipeline(parent *cobra.Command) {
 	var pipeline = &cobra.Command{
 		Use:     "pipeline",
 		Short:   "pipeline",
 		Aliases: []string{"pl"},
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("Pipeline")
-		},
 	}
 
-	info := &cobra.Command{
+	initPlInfo(pipeline)
+	initPlStats(pipeline)
+	parent.AddCommand(pipeline)
+}
+
+func initPlInfo(parent *cobra.Command) {
+	parent.AddCommand(&cobra.Command{
 		Use:     "info [pipeline]",
 		Short:   "info",
 		Aliases: []string{"i"},
@@ -42,11 +45,16 @@ func initPipeline(parent *cobra.Command) {
 				cmd.PrintErrf("Pipeline Info err: %v\n", err)
 				return
 			}
-			cmd.Printf("%s", pi)
-		},
-	}
-	pipeline.AddCommand(info)
 
+			for plName, plInfo := range pi {
+				cmd.Printf("%s: \n", plName)
+				cmd.Printf(plInfo.String())
+			}
+		},
+	})
+}
+
+func initPlStats(parent *cobra.Command) {
 	var re, li, si bool
 	stats := &cobra.Command{
 		Use:     "stats [pipeline]",
@@ -55,7 +63,6 @@ func initPipeline(parent *cobra.Command) {
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
-			ctx, cancelFn := context.WithCancel(cmd.Context())
 			plName := ""
 
 			// check specific pipeline or all
@@ -63,28 +70,17 @@ func initPipeline(parent *cobra.Command) {
 				plName = args[0]
 			}
 
-			// repeat if requested
+			// repeat output if requested
 			if !re {
 				printSinglePipelineStats(cmd, dpdki, plName, 0)
 			} else {
+				ctx, cancelFn := context.WithCancel(cmd.Context())
+
 				cmd.Printf("Press CTRL-C to quit!\n")
-				printRPipelineStats(ctx, cmd, dpdki, plName, re)
+				printRepeatedPipelineStats(ctx, cmd, dpdki, plName)
 
-				// wait for CTRL-C or
-				buf := make([]byte, 1)
-				for {
-					amount, err := cmd.InOrStdin().Read(buf)
-					if err != nil {
-						break
-					}
-
-					if amount > 0 {
-						ch := buf[0]
-						if ch == ETX {
-							break
-						}
-					}
-				}
+				// wait for CTRL-C and then cancel output
+				waitForCtrlC(cmd.InOrStdin())
 				cancelFn()
 				return
 			}
@@ -94,15 +90,13 @@ func initPipeline(parent *cobra.Command) {
 	stats.Flags().BoolVarP(&li, "long", "l", false, "Show all information.")
 	stats.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information.")
 	stats.MarkFlagsMutuallyExclusive("long", "short")
-	pipeline.AddCommand(stats)
-
-	parent.AddCommand(pipeline)
+	parent.AddCommand(stats)
 }
 
-func printRPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string, repeat bool) {
+func printRepeatedPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string) {
 	go func(interval int, ctx context.Context) {
 		var prevLines int
-		for repeat {
+		for {
 			timeout := time.Duration(interval) * time.Second
 			tCtx, tCancel := context.WithTimeout(ctx, timeout)
 			select {
@@ -121,14 +115,21 @@ func printRPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinf
 }
 
 func printSinglePipelineStats(cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string, prevLines int) (int, error) {
-	stats, err := dpdki.PipelineStats(plName)
+	plStats, err := dpdki.PipelineStats(plName)
 	if err != nil {
 		cmd.PrintErrf("Pipeline Stats err: %v\n", err)
 		return 0, err
 	}
+
 	for i := 0; i <= prevLines; i++ {
 		cmd.Printf("\033[A") // move the cursor up
 	}
+
+	var stats string
+	for plName, plStat := range plStats {
+		stats += fmt.Sprintf("%s:\n%v\n", plName, plStat.String())
+	}
+
 	cmd.Printf("\n%s", stats)
 	return strings.Count(stats, "\n"), nil
 }

@@ -55,6 +55,24 @@ func (pi *Info) GetNMetarrays() int {
 	return int(pi.n_metarrays)
 }
 
+const infoTemplate = `ports in           : %d
+ports out          : %d
+mirroring slots    : %d
+mirroring sessions : %d
+actions            : %d
+tables             : %d
+selectors          : %d
+learners           : %d
+register arrays    : %d
+meta arrays        : %d
+`
+
+// Multiline pipeline info string
+func (pi *Info) String() string {
+	return fmt.Sprintf(infoTemplate, pi.n_ports_in, pi.n_ports_out, pi.n_mirroring_slots, pi.n_mirroring_sessions,
+		pi.n_actions, pi.n_tables, pi.n_selectors, pi.n_learners, pi.n_regarrays, pi.n_metarrays)
+}
+
 func (pl *Pipeline) PipelineInfoGet() (*Info, error) {
 	var pipeInfo Info
 
@@ -149,7 +167,7 @@ func (pl *Pipeline) TableInfoGet(tableID int) (*TableInfo, error) {
 
 	status := C.rte_swx_ctl_table_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_table_info)(&tableInfo))
 	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) info get error", tableID)
+		return nil, fmt.Errorf("table (ID: %d) info get error", tableID)
 	}
 	return &tableInfo, nil
 }
@@ -179,7 +197,7 @@ func (pl *Pipeline) TableMatchFieldInfoGet(tableID int, matchFieldID int) (*Tabl
 	status := C.rte_swx_ctl_table_match_field_info_get(
 		pl.p, (C.uint)(tableID), (C.uint)(matchFieldID), (*C.struct_rte_swx_ctl_table_match_field_info)(&tableMatchFieldInfo))
 	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) match field (ID: %d) info get error", tableID, matchFieldID)
+		return nil, fmt.Errorf("table (ID: %d) match field (ID: %d) info get error", tableID, matchFieldID)
 	}
 	return &tableMatchFieldInfo, nil
 }
@@ -205,7 +223,46 @@ func (pl *Pipeline) TableActionInfoGet(tableID int, actionID int) (*TableActionI
 	status := C.rte_swx_ctl_table_action_info_get(
 		pl.p, (C.uint)(tableID), (C.uint)(actionID), (*C.struct_rte_swx_ctl_table_action_info)(&tableActionInfo))
 	if status != 0 {
-		return nil, fmt.Errorf("Table (ID: %d) action (ID: %d) info get error", tableID, actionID)
+		return nil, fmt.Errorf("table (ID: %d) action (ID: %d) info get error", tableID, actionID)
 	}
 	return &tableActionInfo, nil
+}
+
+// information about the structure of a learner table
+type LearnerInfo C.struct_rte_swx_ctl_learner_info
+
+// return the name of the learner table
+func (li *LearnerInfo) GetName() string {
+	return C.GoString(&li.name[0])
+}
+
+func (li *LearnerInfo) GetNMatchFields() uint {
+	return uint(li.n_match_fields)
+}
+
+func (li *LearnerInfo) GetNActions() uint32 {
+	return uint32(li.n_actions)
+}
+
+func (li *LearnerInfo) DefaultActionIsConst() bool {
+	return li.default_action_is_const > 0
+}
+
+func (li *LearnerInfo) GetSize() uint32 {
+	return uint32(li.size)
+}
+
+func (li *LearnerInfo) GetNKeyTimeouts() uint32 {
+	return uint32(li.n_key_timeouts)
+}
+
+func (pl *Pipeline) LearnerInfoGet(tableID int) (*LearnerInfo, error) {
+	var learnerInfo LearnerInfo
+
+	status := C.rte_swx_ctl_learner_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_learner_info)(&learnerInfo))
+	if status != 0 {
+		return nil, fmt.Errorf("learner table (ID: %d) info get error", tableID)
+	}
+
+	return &learnerInfo, nil
 }
