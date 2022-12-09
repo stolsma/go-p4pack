@@ -5,8 +5,8 @@ package dpdkinfra
 
 import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/netlink"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
-	"github.com/vishvananda/netlink"
 )
 
 type InterfaceConfig struct {
@@ -67,7 +67,8 @@ func (dpdki *DpdkInfra) CreateInterfaceWithConfig(ifConfig *InterfaceConfig) {
 		}
 
 		// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
-		dpdki.InterfaceUp(name)
+		netlink.InterfaceUp(name)
+		netlink.RemoveAllAddr(name)
 		log.Infof("TAP %s created!", name)
 		return
 	}
@@ -110,30 +111,8 @@ func (dpdki *DpdkInfra) CreateInterfaceWithConfig(ifConfig *InterfaceConfig) {
 		}
 
 		// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
-		dpdki.InterfaceUp(name)
+		netlink.InterfaceUp(name)
+		netlink.RemoveAllAddr(name)
 		log.Infof("PMD %s (device name: %s) created!", name, vh.DevName)
 	}
-}
-
-// Create interfaces through the DpdkInfra API
-func (dpdki *DpdkInfra) InterfaceUp(name string) error {
-	// set interface up if not already up
-	localInterface, err := netlink.LinkByName(name)
-	if err != nil {
-		return err
-	}
-	if err = netlink.LinkSetUp(localInterface); err != nil {
-		return err
-	}
-
-	list, _ := netlink.AddrList(localInterface, netlink.FAMILY_ALL)
-	for _, addr := range list {
-		a := addr
-		err := netlink.AddrDel(localInterface, &a)
-		if err != nil {
-			log.Warnf("Couldnt remove address %s from interface %s", addr.String(), name)
-		}
-	}
-
-	return nil
 }
