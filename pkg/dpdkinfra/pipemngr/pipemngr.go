@@ -7,9 +7,7 @@ import (
 	"errors"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra/store"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
@@ -41,22 +39,16 @@ func (pm *PipeMngr) Cleanup() {
 
 func (pm *PipeMngr) PipelineCreate(plName string, numaNode int) (*pipeline.Pipeline, error) {
 	var pl pipeline.Pipeline
-	var innerErr error
 
-	// execute pipeline creation on dpdk main thread
-	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
-		// initialize pipeline record
-		innerErr = pl.Init(plName, numaNode, func() {
-			log.Infof("Remove pipeline %s from store", plName)
-			pm.PipelineStore.Delete(plName)
-		})
+	// initialize pipeline record
+	err := pl.Init(plName, numaNode, func() {
+		log.Infof("Remove pipeline %s from store", plName)
+		pm.PipelineStore.Delete(plName)
 	})
 
 	// check if something went wrong
 	if err != nil {
 		return nil, err
-	} else if innerErr != nil {
-		return nil, innerErr
 	}
 
 	// add node to list
@@ -89,7 +81,12 @@ func (pm *PipeMngr) PipelineCommit(plName string) error {
 
 func (pm *PipeMngr) PipelineEnable(plName string, threadID uint) error {
 	pl := pm.PipelineStore.Get(plName)
-	return dpdkswx.Runtime.EnablePipeline(pl, threadID)
+	return pl.SetEnabled(threadID)
+}
+
+func (pm *PipeMngr) PipelineDisable(plName string) error {
+	pl := pm.PipelineStore.Get(plName)
+	return pl.SetDisabled()
 }
 
 func (pm *PipeMngr) TableEntryAdd(plName string, tableName string, line string) error {

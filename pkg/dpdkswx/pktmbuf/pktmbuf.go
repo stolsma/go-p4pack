@@ -56,10 +56,9 @@ func (pm *Pktmbuf) Init(
 	}
 
 	// create PktMbufpool on main DPDK Lcore to prevent problems
-	var mpErr error
 	var md *mempool.Mempool
-	if execErr := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) {
-		md, mpErr = mempool.CreateMbufPool(
+	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) (err error) {
+		md, err = mempool.CreateMbufPool(
 			name,
 			poolSize,
 			uint16(bufferSize),
@@ -67,13 +66,10 @@ func (pm *Pktmbuf) Init(
 			mempool.OptCacheSize(cacheSize),
 			mempool.OptPrivateDataSize(0), // for each Mbuf
 		)
-	}); execErr != nil {
-		return execErr
-	}
-
-	// error during CreateMbufPool ?
-	if mpErr != nil {
-		return mpErr
+		return err
+	})
+	if err != nil {
+		return err
 	}
 
 	// Node fill in
@@ -93,7 +89,7 @@ func (pm *Pktmbuf) Mempool() *mempool.Mempool {
 	return pm.m
 }
 
-func (pm *Pktmbuf) Free() {
+func (pm *Pktmbuf) Free() error {
 	if pm.m != nil {
 		pm.m.Free()
 		pm.m = nil
@@ -103,4 +99,6 @@ func (pm *Pktmbuf) Free() {
 	if pm.clean != nil {
 		pm.clean()
 	}
+
+	return nil
 }

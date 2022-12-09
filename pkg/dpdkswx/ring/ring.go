@@ -78,13 +78,15 @@ func (r *Ring) Size() uint {
 }
 
 // Free deletes the current Ring record and calls the clean callback function given at init
-func (r *Ring) Free() {
+func (r *Ring) Free() error {
 	C.rte_ring_free(r.r)
 
 	// call given clean callback function if given during init
 	if r.Clean() != nil {
 		r.Clean()()
 	}
+
+	return nil
 }
 
 // Lookup searches a ring from its name in RTE_TAILQ_RING, i.e. among those created with rte_ring_create.

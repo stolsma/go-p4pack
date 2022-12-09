@@ -9,7 +9,7 @@ import (
 
 type ValueInterface interface {
 	kvstore.ValueInterface
-	Free()
+	Free() error
 }
 
 type Store[V ValueInterface] struct {
@@ -38,8 +38,8 @@ func (s *Store[V]) Get(key string) (value V) {
 // Clear deletes all key-value pairs from the key-value store and calls the Free method on all Values.
 func (s *Store[V]) Clear() {
 	s.Iterate(func(key string, value V) error {
-		value.Free()
+		err := value.Free()
 		s.Delete(key)
-		return nil
+		return err
 	})
 }

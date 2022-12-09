@@ -254,7 +254,7 @@ func (ethdev *Ethdev) DevName() string {
 }
 
 // Free deletes the current Ethdev record and calls the clean callback function given at init
-func (ethdev *Ethdev) Free() {
+func (ethdev *Ethdev) Free() error {
 	// Release all resources for this port
 	ethdev.Stop()
 
@@ -262,6 +262,8 @@ func (ethdev *Ethdev) Free() {
 	if ethdev.Clean() != nil {
 		ethdev.Clean()()
 	}
+
+	return nil
 }
 
 // TODO Rewrite this function to portId.RssRetaUpdate!

@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/eal"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 )
 
 // MainCtx is the main lcore context and is supplied to the function running in the main lcore.
@@ -22,7 +21,7 @@ type MainCtx struct {
 }
 
 type mainJob struct {
-	fn  func(*MainCtx)
+	fn  func(*MainCtx) error
 	ret chan<- error
 }
 
@@ -44,7 +43,7 @@ func CreateAndStart(args []string) (rt *Runtime, nArgs int, err error) {
 }
 
 // ExecOnMainAsync asynchronously executes given function on main lcore.
-func (rt *Runtime) ExecOnMainAsync(ret chan error, fn func(*MainCtx)) <-chan error {
+func (rt *Runtime) ExecOnMainAsync(ret chan error, fn func(*MainCtx) error) <-chan error {
 	if !rt.running {
 		ret <- fmt.Errorf("swx runtime not initialized")
 		return ret
@@ -56,7 +55,7 @@ func (rt *Runtime) ExecOnMainAsync(ret chan error, fn func(*MainCtx)) <-chan err
 }
 
 // ExecOnMain executes function on main lcore.
-func (rt *Runtime) ExecOnMain(fn func(*MainCtx)) error {
+func (rt *Runtime) ExecOnMain(fn func(*MainCtx) error) error {
 	return <-rt.ExecOnMainAsync(make(chan error, 1), fn)
 }
 
@@ -98,7 +97,7 @@ func (e *ErrMainCorePanic) FprintStack(w io.Writer) {
 }
 
 // panicCatcher launches function and returns possible panic as an error.
-func panicCatcher(fn func(*MainCtx), ctx *MainCtx) (err error) {
+func panicCatcher(fn func(*MainCtx) error, ctx *MainCtx) (err error) {
 	defer func() {
 		r := recover()
 		if r == nil {
@@ -117,7 +116,7 @@ func panicCatcher(fn func(*MainCtx), ctx *MainCtx) (err error) {
 		// function, (2) this caller function
 		err = &ErrMainCorePanic{pc[:n], r}
 	}()
-	fn(ctx)
+	err = fn(ctx)
 	return err
 }
 
@@ -189,17 +188,18 @@ func (rt *Runtime) Start(args []string) (n int, err error) {
 // Warning: it will block until all lcore threads finish execution.
 func (rt *Runtime) Stop() (err error) {
 	// stop DPDK SWX workers
-	err = rt.ExecOnMain(func(ctx *MainCtx) {
-		ThreadsStop()
+	err = rt.ExecOnMain(func(ctx *MainCtx) error {
+		return ThreadsStop()
 	})
 	if err != nil {
 		return
 	}
 
 	// quit main LCore function
-	err = rt.ExecOnMain(func(ctx *MainCtx) {
+	err = rt.ExecOnMain(func(ctx *MainCtx) error {
 		// TODO Does this work????
 		ctx.done = true
+		return nil
 	})
 
 	rt.running = false
@@ -208,24 +208,4 @@ func (rt *Runtime) Stop() (err error) {
 
 func (rt *Runtime) IsRunning() bool {
 	return rt.running
-}
-
-func (rt *Runtime) EnablePipeline(pl *pipeline.Pipeline, threadID uint) (err error) {
-	if err = pl.SetEnabled(threadID); err != nil {
-		return
-	}
-
-	if err = EnablePipeline(pl, threadID); err != nil {
-		pl.SetDisabled()
-	}
-
-	return
-}
-
-func (rt *Runtime) DisablePipeline(pl *pipeline.Pipeline) (err error) {
-	if err = pl.SetDisabled(); err != nil {
-		return err
-	}
-
-	return DisablePipeline(pl)
 }

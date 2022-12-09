@@ -12,17 +12,18 @@ package swxruntime
 */
 import "C"
 import (
+	"unsafe"
+
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 )
 
 //
 // Pipeline functions
 //
 
-func EnablePipeline(pl *pipeline.Pipeline, threadID uint) error {
+func EnablePipeline(pl unsafe.Pointer, threadID uint, timerPeriodms uint) error {
 	res := C.thread_pipeline_enable(
-		C.uint(threadID), (*C.struct_rte_swx_pipeline)(pl.GetPipeline()), C.uint(pl.GetTimerPeriodms()))
+		C.uint(threadID), (*C.struct_rte_swx_pipeline)(pl), C.uint(timerPeriodms))
 	if res != 0 {
 		return common.Err(res)
 	}
@@ -30,8 +31,8 @@ func EnablePipeline(pl *pipeline.Pipeline, threadID uint) error {
 	return nil
 }
 
-func DisablePipeline(pl *pipeline.Pipeline) error {
-	res := C.thread_pipeline_disable(C.uint(pl.GetThreadID()), (*C.struct_rte_swx_pipeline)(pl.GetPipeline()))
+func DisablePipeline(pl unsafe.Pointer, threadID uint) error {
+	res := C.thread_pipeline_disable(C.uint(threadID), (*C.struct_rte_swx_pipeline)(pl))
 	return common.Err(res)
 }
 

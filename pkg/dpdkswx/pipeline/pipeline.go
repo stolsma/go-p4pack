@@ -62,7 +62,9 @@ import (
 	"errors"
 	"unsafe"
 
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
@@ -102,10 +104,18 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	var p *C.struct_rte_swx_pipeline
 
 	// Resource create
-	status := int(C.rte_swx_pipeline_config(&p, (C.int)(numaNode))) //nolint:gocritic
-	if status != 0 {
-		C.rte_swx_pipeline_free(p)
-		return common.Err(status)
+	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
+		status := int(C.rte_swx_pipeline_config(&p, (C.int)(numaNode))) //nolint:gocritic
+		if status != 0 {
+			C.rte_swx_pipeline_free(p)
+			return common.Err(status)
+		}
+		return nil
+	})
+
+	// check if something went wring when executing on main
+	if err != nil {
+		return err
 	}
 
 	// Node fill in
@@ -121,11 +131,19 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 
 // Pipeline struct free. If internal pipeline struct pointer is nil, no operation is performed only clean fn is called
 // if set in structure.
-func (pl *Pipeline) Free() {
+func (pl *Pipeline) Free() (err error) {
 	if pl.p != nil {
 		log.Infof("Freeing pipeline: %s", pl.GetName())
-		pl.Ctl.Free()
-		C.rte_swx_pipeline_free(pl.p)
+
+		err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
+			if pl.enabled {
+				err = swxruntime.DisablePipeline(pl.GetPipeline(), pl.threadID)
+			}
+			pl.Ctl.Free()
+			C.rte_swx_pipeline_free(pl.p)
+			return err
+		})
+
 		pl.build = false
 		pl.enabled = false
 		pl.p = nil
@@ -134,6 +152,8 @@ func (pl *Pipeline) Free() {
 	if pl.clean != nil {
 		pl.clean()
 	}
+
+	return
 }
 
 func (pl *Pipeline) GetName() string {
@@ -205,10 +225,17 @@ func (pl *Pipeline) BuildFromSpec(specfile string) error {
 	return nil
 }
 
-// Set pipeline to enabled
+// Set pipeline to enabled on given thread
 func (pl *Pipeline) SetEnabled(threadID uint) error {
 	if pl.enabled {
-		return errors.New("pipeline already enabled")
+		return errors.New("pipeline is already enabled")
+	}
+
+	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
+		return swxruntime.EnablePipeline(pl.GetPipeline(), threadID, pl.timerPeriodms)
+	})
+	if err != nil {
+		return err
 	}
 
 	pl.threadID = threadID
@@ -223,8 +250,16 @@ func (pl *Pipeline) SetDisabled() error {
 		return errors.New("pipeline is not enabled")
 	}
 
+	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
+		return swxruntime.DisablePipeline(pl.GetPipeline(), pl.threadID)
+	})
+	if err != nil {
+		return err
+	}
+
 	pl.threadID = 0
 	pl.enabled = false
+
 	return nil
 }
 

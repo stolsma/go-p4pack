@@ -101,12 +101,14 @@ func (tap *Tap) Fd() C.int {
 }
 
 // Free deletes the current Tap record and calls the clean callback function given at init
-func (tap *Tap) Free() {
+func (tap *Tap) Free() error {
 	// TODO remove TAP interface from the system
 	// call given clean callback function if given during init
 	if tap.Clean() != nil {
 		tap.Clean()()
 	}
+
+	return nil
 }
 
 // bind to given pipeline input port
