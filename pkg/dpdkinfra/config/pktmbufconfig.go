@@ -1,9 +1,15 @@
 // SPDX-FileCopyrightText: 2022-present Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package dpdkinfra
+package config
 
-import "github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
+)
 
 type PktmbufConfig struct {
 	Name       string `json:"name"`
@@ -36,13 +42,22 @@ func (mpc *PktmbufConfig) GetCPUID() int {
 	return mpc.CPUID
 }
 
-// Create pipelines through the DpdkInfra API
-func (dpdki *DpdkInfra) CreatePktmbufWithConfig(m *PktmbufConfig) {
-	// Create PktMbuf memory pool
-	name := m.GetName()
-	_, err := dpdki.PktmbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
-	if err != nil {
-		log.Fatalf("Pktmbuf Mempool %s create err: %d", name, err)
+// Create pktmbufs through the DpdkInfra API
+func (c *Config) ApplyPktmbuf() error {
+	dpdki := dpdkinfra.Get()
+	if dpdki == nil {
+		return errors.New("dpdkinfra module is not initialized")
 	}
-	log.Infof("Pktmbuf Mempool %s ready!", name)
+
+	// Create PktMbuf memory pool
+	for _, m := range c.PktMbufs {
+		name := m.GetName()
+		_, err := dpdki.PktmbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
+		if err != nil {
+			return fmt.Errorf("pktmbuf %s create err: %d", name, err)
+		}
+		log.Infof("Pktmbuf Mempool %s ready!", name)
+	}
+
+	return nil
 }

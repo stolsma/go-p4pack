@@ -10,6 +10,7 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/config"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	dpdkiConfig "github.com/stolsma/go-p4pack/pkg/dpdkinfra/config"
 	"github.com/stolsma/go-p4pack/pkg/flowtest"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 	"github.com/stolsma/go-p4pack/pkg/signals"
@@ -24,6 +25,12 @@ func init() {
 	})
 }
 
+type Config struct {
+	*dpdkiConfig.Config `json:"chassis"`
+	FlowTest            *flowtest.Config `json:"flowtest"`
+	Logging             *logging.Config  `json:"logging"`
+}
+
 func main() {
 	// the context for the app with cancel function
 	appCtx, cancelAppCtx := context.WithCancel(context.Background())
@@ -35,13 +42,19 @@ func main() {
 	configFile, _ := cmd.Flags().GetString("config")
 
 	// get configuration
-	conf, err := config.CreateAndLoad(configFile)
+	conf := &Config{Config: dpdkiConfig.Create()}
+	err := config.LoadConfig(configFile, conf)
 	if err != nil {
 		log.Fatalf("Configuration load failed: ", err)
 	}
 
 	// configure logging with our app requirements
-	logging.Configure(conf.Logging)
+	if conf.Logging != nil {
+		err = conf.Logging.Apply()
+		if err != nil {
+			log.Fatalf("Applying logging config failed:", err)
+		}
+	}
 
 	// initialize the dpdkinfra singleton
 	dpdki, err := dpdkinfra.CreateAndInit(strings.Split(dpdkArgs, " "))
@@ -49,31 +62,25 @@ func main() {
 		log.Fatalf("DPDKInfraInit failed:", err)
 	}
 
-	// create Packet Mbuf mempools
-	for _, m := range conf.PktMbufs {
-		dpdki.CreatePktmbufWithConfig(m)
-	}
-
-	// create dpdkinfra interfaces through the API
-	for _, i := range conf.Interfaces {
-		dpdki.CreateInterfaceWithConfig(i)
-	}
-
-	// create and start dpdkinfra pipelines through the API
-	for _, p := range conf.Pipelines {
-		p.SetBasePath(conf.GetBasePath())
-		dpdki.CreatePipelineWithConfig(p)
-	}
-
-	// define and start flowtests if requested
-	tests, err := flowtest.Init(appCtx, conf.FlowTest)
-	if err != nil {
-		log.Fatalf("Tests initialization failed:", err)
-	}
-	if conf.FlowTest.GetStart() {
-		err = tests.StartAll()
+	// Apply given dpdkinfra configuration
+	if conf.Config != nil {
+		err = conf.Config.Apply()
 		if err != nil {
-			log.Fatalf("Starting predefined flowtests failed:", err)
+			log.Fatalf("Applying chassis config failed:", err)
+		}
+	}
+
+	// initialize the flowtest singleton
+	_, err = flowtest.CreateAndInit(appCtx)
+	if err != nil {
+		log.Fatalf("Flow tests initialization failed:", err)
+	}
+
+	// apply given flowtest configuration
+	if conf.FlowTest != nil {
+		err = conf.FlowTest.Apply()
+		if err != nil {
+			log.Fatalf("Applying predefined flowtests failed:", err)
 		}
 	}
 

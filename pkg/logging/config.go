@@ -46,6 +46,11 @@ type Config struct {
 	Sinks   map[string]SinkConfig   `json:"sinks" yaml:"sinks"`
 }
 
+// Process everything in this config structure
+func (c *Config) Apply() error {
+	return Configure(c)
+}
+
 // GetRootLogger returns the root logger configuration
 func (c Config) GetRootLogger() LoggerConfig {
 	root := c.Loggers[rootLoggerName]

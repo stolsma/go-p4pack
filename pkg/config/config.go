@@ -8,22 +8,26 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
-	"github.com/stolsma/go-p4pack/pkg/flowtest"
-	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
-type Config struct {
-	BasePath   string
-	PktMbufs   []*dpdkinfra.PktmbufConfig   `json:"pktmbufs"`
-	Interfaces []*dpdkinfra.InterfaceConfig `json:"interfaces"`
-	Pipelines  []*dpdkinfra.PipelineConfig  `json:"pipelines"`
-	FlowTest   *flowtest.Config             `json:"flowtest"`
-	Logging    *logging.Config              `json:"logging"`
+type Type interface {
+	SetBasePath(bp string)
+	GetBasePath() string
 }
 
-func (c *Config) LoadConfig(filename string) error {
+type Base struct {
+	basePath string
+}
+
+func (b *Base) SetBasePath(bp string) {
+	b.basePath = bp
+}
+
+func (b *Base) GetBasePath() string {
+	return b.basePath
+}
+
+func LoadConfig(filename string, c Type) error {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("error when opening file: %s", err)
@@ -34,20 +38,7 @@ func (c *Config) LoadConfig(filename string) error {
 	}
 
 	// save the basepath of the config file read
-	c.BasePath = filepath.Dir(filename)
+	c.SetBasePath(filepath.Dir(filename))
 
 	return nil
-}
-
-func (c *Config) GetBasePath() string {
-	return c.BasePath
-}
-
-func CreateAndLoad(filepath string) (*Config, error) {
-	config := Create()
-	return config, config.LoadConfig(filepath)
-}
-
-func Create() *Config {
-	return &Config{}
 }

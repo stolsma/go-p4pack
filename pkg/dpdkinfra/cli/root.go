@@ -23,7 +23,7 @@ func GetCommand(root *cobra.Command) *cobra.Command {
 
 	// add all supported root commands
 	initPipeline(root)
-	initMempool(root)
+	initPktmbuf(root)
 	initInterface(root)
 	return root
 }

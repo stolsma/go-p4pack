@@ -6,6 +6,7 @@ package flowtest
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 )
@@ -14,6 +15,41 @@ type Config struct {
 	Start      bool              `json:"start"`
 	Interfaces []InterfaceConfig `json:"interfaces"`
 	FlowSets   []FlowSetConfig   `json:"flowsets"`
+}
+
+// Process everything in this config structure
+func (c *Config) Apply() error {
+	// get flowtest singleton and check if it is initialized
+	t := Get()
+	if t == nil {
+		return errors.New("flowtest module is not initialized")
+	}
+
+	// add the interface references
+	for _, intf := range c.Interfaces {
+		err := t.AddInterface(intf.GetName(), intf.GetMAC(), intf.GetIP())
+		if err != nil {
+			return err
+		}
+	}
+
+	// add the flowsets
+	for _, test := range c.FlowSets {
+		err := t.AddFlowSet(test)
+		if err != nil {
+			return err
+		}
+	}
+
+	// start the flowsets right away when requested
+	if c.GetStart() {
+		err := t.StartAll()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (c *Config) GetStart() bool {

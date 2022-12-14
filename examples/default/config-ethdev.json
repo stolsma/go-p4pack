@@ -1,102 +1,104 @@
 {
-  "pktmbufs" : [{
-    "name": "MEMPOOL0",
-    "buffersize": 2304,
-    "poolsize": 32768,
-    "cachesize": 256,
-    "cpuid": 0
-  }],
-  "interfaces" : [{
-    "name": "sw1",
-    "tap": {}
-  },{
-    "name": "sw2",
-    "tap": {}
-  },{
-    "name": "sw3",
-    "vdev": {
-      "devname": "virtio_user0",
-      "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
-      "rx": {
-        "mtu": 1500,
-        "nqueues": 1,
-        "queuesize": 32,
-        "pktmbuf": "MEMPOOL0",
-        "promiscuous": true
-      },
-      "tx": {
-        "nqueues": 1,
-        "queuesize": 32
-      }
-    }
-  },{
-    "name": "sw4",
-    "ethdev": {
-      "devname": "0000:04:00.1",
-      "devargs": "",
-      "rx": {
-        "nqueues": 1,
-        "queuesize": 128,
-        "pktmbuf": "MEMPOOL0",
-        "promiscuous": true
-      },
-      "tx": {
-        "nqueues": 1,
-        "queuesize": 512
-      }
-    }
-  }],
-  "pipelines" :[{
-    "name": "PIPELINE0",
-    "numanode": 0,
-    "threadid": 1,
-    "spec": "./default.spec",
-    "inputports": [{
-      "ifacename": "sw1",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
-      "bsz": 1
-    },{
-      "ifacename": "sw2",
-      "pktmbuf": "MEMPOOL0",
-      "mtu": 1514,
-      "bsz": 1
-    },{
-      "ifacename": "sw3",
-      "rxqueue": 0,
-      "bsz": 1
-    },{
-      "ifacename": "sw4",
-      "rxqueue": 0,
-      "bsz": 32
+  "chassis": {
+    "pktmbufs" : [{
+      "name": "MEMPOOL0",
+      "buffersize": 2304,
+      "poolsize": 32768,
+      "cachesize": 256,
+      "cpuid": 0
     }],
-    "outputports": [{
-      "ifacename": "sw1",
-      "bsz": 1
+    "interfaces" : [{
+      "name": "sw1",
+      "tap": {}
     },{
-      "ifacename": "sw2",
-      "bsz": 1
+      "name": "sw2",
+      "tap": {}
     },{
-      "ifacename": "sw3",
-      "txqueue": 0,
-      "bsz": 1
+      "name": "sw3",
+      "vdev": {
+        "devname": "virtio_user0",
+        "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
+        "rx": {
+          "mtu": 1500,
+          "nqueues": 1,
+          "queuesize": 32,
+          "pktmbuf": "MEMPOOL0",
+          "promiscuous": true
+        },
+        "tx": {
+          "nqueues": 1,
+          "queuesize": 32
+        }
+      }
     },{
-      "ifacename": "sw4",
-      "txqueue": 0,
-      "bsz": 32
+      "name": "sw4",
+      "ethdev": {
+        "devname": "0000:04:00.1",
+        "devargs": "",
+        "rx": {
+          "nqueues": 1,
+          "queuesize": 128,
+          "pktmbuf": "MEMPOOL0",
+          "promiscuous": true
+        },
+        "tx": {
+          "nqueues": 1,
+          "queuesize": 512
+        }
+      }
     }],
-    "start": {
-      "tables": [{
-        "name": "ipv4_host",
-        "data": [
-          "match 0xc0a8de01 action send port 0",
-          "match 0xc0a8de02 action send port 1",
-          "match 0xc0a8de03 action send port 2",
-          "match 0xc0a8de04 action send port 3"
-        ]
-      }]
-    }
-  }],
+    "pipelines" :[{
+      "name": "PIPELINE0",
+      "numanode": 0,
+      "threadid": 1,
+      "spec": "./default.spec",
+      "inputports": [{
+        "ifacename": "sw1",
+        "pktmbuf": "MEMPOOL0",
+        "mtu": 1514,
+        "bsz": 1
+      },{
+        "ifacename": "sw2",
+        "pktmbuf": "MEMPOOL0",
+        "mtu": 1514,
+        "bsz": 1
+      },{
+        "ifacename": "sw3",
+        "rxqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw4",
+        "rxqueue": 0,
+        "bsz": 32
+      }],
+      "outputports": [{
+        "ifacename": "sw1",
+        "bsz": 1
+      },{
+        "ifacename": "sw2",
+        "bsz": 1
+      },{
+        "ifacename": "sw3",
+        "txqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw4",
+        "txqueue": 0,
+        "bsz": 32
+      }],
+      "start": {
+        "tables": [{
+          "name": "ipv4_host",
+          "data": [
+            "match 0xc0a8de01 action send port 0",
+            "match 0xc0a8de02 action send port 1",
+            "match 0xc0a8de03 action send port 2",
+            "match 0xc0a8de04 action send port 3"
+          ]
+        }]
+      }
+    }]
+  },
   "flowtest" :{
     "start": false,
     "interfaces" : [{

@@ -5,10 +5,13 @@ package flowtest
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
+var flowTest *FlowTest
 var log logging.Logger
 
 func init() {
@@ -45,39 +48,41 @@ type FlowTest struct {
 	flowSets []*FlowSet
 }
 
-func Create() *FlowTest {
-	t := &FlowTest{
+// return a pointer to the (initialized) flowtest singleton
+func Get() *FlowTest {
+	return flowTest
+}
+
+// create and initialize the flowtest singleton, return the current flowtest singleton with error if it already exists
+func CreateAndInit(ctx context.Context) (*FlowTest, error) {
+	if flowTest != nil {
+		return flowTest, errors.New("flowtest already initialized")
+	}
+
+	flowTest = &FlowTest{
 		ifaces: make(map[string]*Iface),
 	}
 
-	return t
+	flowTest.Init(ctx)
+
+	return flowTest, nil
 }
 
-func Init(ctx context.Context, config *Config) (*FlowTest, error) {
-	t := Create()
-	return t, t.Init(ctx, config)
-}
-
-func (t *FlowTest) Init(ctx context.Context, config *Config) error {
+func (t *FlowTest) Init(ctx context.Context) {
 	ctx, cancelFn := context.WithCancel(ctx)
 	t.ctx = ctx
 	t.cancelFn = cancelFn
+}
 
-	// initialize the interface references
-	for _, intf := range config.Interfaces {
-		ifName := intf.GetName()
-		t.ifaces[ifName] = &Iface{ // interface configuration
-			Name: ifName,
-			MAC:  intf.GetMAC(),
-			IP:   intf.GetIP(),
-		}
+func (t *FlowTest) AddInterface(ifName string, mac HexArray, ip HexArray) error {
+	if t.ifaces[ifName] != nil {
+		return fmt.Errorf("interface %s already exists", ifName)
 	}
 
-	for _, test := range config.FlowSets {
-		err := t.AddFlowSet(test)
-		if err != nil {
-			return err
-		}
+	t.ifaces[ifName] = &Iface{ // interface configuration
+		Name: ifName,
+		MAC:  mac,
+		IP:   ip,
 	}
 
 	return nil
