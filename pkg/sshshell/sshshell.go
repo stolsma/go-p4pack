@@ -60,19 +60,26 @@ func (s *Shell) InstanceName() string {
 }
 
 // Read blocks until the next line of input, such as a command, is available and returns that line. The error will be
-// io.EOF if Control-D was pressed.
-func (s *Shell) Read() (string, error) {
+// io.EOF if Control-D was pressed. If a line is given that will be the starting point for adding new input, this is
+// for example used for tab completion return. If returned boolean is true, tab completion is requested on given line.
+func (s *Shell) Read(line string) (string, bool, error) {
 	buf := make([]byte, 1)
 
-	_, err := s.rw.Write([]byte(s.prompt))
+	// returned completion line???
+	if line != "" {
+		s.line = []byte(line)
+	}
+
+	// write prompt + line
+	_, err := s.rw.Write([]byte(s.prompt + line))
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	for {
 		amount, err := s.rw.Read(buf)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 
 		if amount > 0 {
@@ -84,7 +91,7 @@ func (s *Shell) Read() (string, error) {
 					if ch >= 0x40 || ch <= 0x7e {
 						err := s.handleCsiSequence()
 						if err != nil {
-							return "", err
+							return "", false, err
 						}
 					}
 
@@ -93,7 +100,7 @@ func (s *Shell) Read() (string, error) {
 
 				default:
 					fmt.Printf("Can't handle ESC sequence: %q\n", ch)
-					return "", errors.New("unsupported ESC sequence")
+					return "", false, errors.New("unsupported ESC sequence")
 				}
 			} else {
 				switch {
@@ -101,40 +108,45 @@ func (s *Shell) Read() (string, error) {
 					s.inEsc = true
 
 				case ch == DEL:
+					// remove this line from history
 					s.unshiftHistory()
 					err := s.del()
 					if err != nil {
-						return "", err
+						return "", false, err
 					}
 
-				// line finished?
 				case ch == CR:
-					//					etxCh := make(chan struct{})
+					// line input finished so return and handle line
 					line, err := s.finishLine()
-					return line, err
+					return line, false, err
 
 				case ch == EOT:
-					// control-D, exit
+					// control-D, exit shell
 					_, err = s.rw.Write([]byte{CR, LF})
 					if err != nil {
-						return "", err
+						return "", false, err
 					}
-					return "", io.EOF
+					return "", false, io.EOF
 
 				case ch == ETX:
-					// cancel current input line
+					// control-c, cancel current input line
 					s.unshiftHistory()
 					_, err = s.rw.Write([]byte("\r\n" + s.prompt))
 					if err != nil {
-						return "", err
+						return "", false, err
 					}
 					s.line = nil
+
+				case ch == TAB:
+					// do tab completion for current line
+					line, err = s.tabCompletion()
+					return line, true, err
 
 				case ch >= ' ' && ch < '~':
 					s.unshiftHistory()
 					err := s.Add(ch)
 					if err != nil {
-						return "", err
+						return "", false, err
 					}
 
 				default:
@@ -192,6 +204,17 @@ func (s *Shell) finishLine() (string, error) {
 	return line, nil
 }
 
+func (s *Shell) tabCompletion() (string, error) {
+	_, err := s.rw.Write([]byte{CR, LF})
+	if err != nil {
+		return "", err
+	}
+
+	line := string(s.line)
+	s.line = nil
+	return line, nil
+}
+
 func (s *Shell) outputShiftedHistory() error {
 	err := s.eraseCurrent()
 	if err != nil {
@@ -223,8 +246,14 @@ func (s *Shell) handleCsiSequence() error {
 	}
 }
 
+// write string to output with adding \r\n
 func (s *Shell) OutputLine(line string) error {
-	_, err := s.rw.Write([]byte(line + "\r\n"))
+	return s.Output(line + "\r\n")
+}
+
+// write string to output without adding \r\n
+func (s *Shell) Output(line string) error {
+	_, err := s.rw.Write([]byte(line))
 	return err
 }
 

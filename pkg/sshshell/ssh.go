@@ -38,6 +38,9 @@ type Handler interface {
 	// is closed.
 	HandleLine(ctx context.Context, line string) error
 
+	// handle completion requests
+	HandleCompletion(ctx context.Context, line string) (string, error)
+
 	// HandleEOF is called when the user types Control-D. If an error is returned, then the error is reported back to the
 	// SSH client and the SSH session is closed.
 	HandleEOF() error
@@ -67,6 +70,10 @@ func (s *SSHServer) Listen(ctx context.Context) error {
 	log.Infof("Accepting SSH connections at %s", bind)
 	return ssh.ListenAndServe(bind,
 		func(session ssh.Session) {
+			var line string
+			var completion bool
+			var err error
+
 			// the context for this session
 			sessionCtx, cancelSession := context.WithCancel(srvCtx)
 
@@ -86,7 +93,7 @@ func (s *SSHServer) Listen(ctx context.Context) error {
 					return
 				default:
 					// read line from shell
-					line, err := shell.Read()
+					line, completion, err = shell.Read(line)
 
 					if err != nil {
 						if err == io.EOF {
@@ -101,8 +108,13 @@ func (s *SSHServer) Listen(ctx context.Context) error {
 						return
 					}
 
-					// handle the line read, if returned error is io.EOF then stop silent else return with the error
-					err = handler.HandleLine(sessionCtx, line)
+					if completion {
+						line, err = handler.HandleCompletion(sessionCtx, line)
+					} else {
+						// handle the line read, if returned error is io.EOF then stop silent else return with the error
+						err = handler.HandleLine(sessionCtx, line)
+						line = ""
+					}
 					if err != nil {
 						if err != io.EOF {
 							endSessionWithError(session, shell, err)
