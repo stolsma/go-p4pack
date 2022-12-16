@@ -196,7 +196,7 @@ func (o *zapOutput) Fatal(args ...interface{}) {
 }
 
 func (o *zapOutput) Fatalf(template string, args ...interface{}) {
-	o.logger.Sugar().Fatalf(template, args)
+	o.logger.Sugar().Fatalf(template, args...)
 }
 
 func (o *zapOutput) Fatalw(msg string, keysAndValues ...interface{}) {
