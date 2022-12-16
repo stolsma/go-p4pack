@@ -137,16 +137,10 @@ func (h *cliHandler) HandleEOF() error {
 }
 
 // Start a SSH server with given context and DPDK Infra API
-func startSSHShell(ctx context.Context, createRoot func() *cobra.Command) {
+func startSSHShell(ctx context.Context, createRoot func() *cobra.Command, config *shell.Config) {
 	go func(ctx context.Context, createRoot func() *cobra.Command) {
 		sshServer := &shell.SSHServer{
-			Config: &shell.Config{
-				Bind: ":2222",
-				Users: map[string]shell.User{
-					"user": {Password: "notsecure"},
-				},
-				HostKeyFile: "./hostkey",
-			},
+			Config:         config,
 			HandlerFactory: createHandlerFactory(createRoot),
 		}
 

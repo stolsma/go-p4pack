@@ -4,14 +4,14 @@
 package sshshell
 
 type User struct {
-	Password string
+	Password string `json:"password"`
 }
 
 type Config struct {
-	HistorySize int
-	HostKeyFile string `mapstructure:"host-key-file"`
-	Users       map[string]User
-	Bind        string
+	HistorySize int             `json:"historysize"`
+	HostKeyFile string          `json:"hostkeyfile" mapstructure:"host-key-file"`
+	Users       map[string]User `json:"users"`
+	Bind        string          `json:"bind"`
 }
 
 const (

@@ -1,4 +1,13 @@
 {
+  "sshshell":{
+    "bind": ":2222",
+    "users": {
+      "user": {
+        "password": "notsecure"
+      }
+    },
+    "hostkeyfile": "./hostkey"
+  },
   "chassis": {
     "pktmbufs" : [{
       "name": "MEMPOOL0",

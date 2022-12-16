@@ -14,6 +14,7 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/flowtest"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 	"github.com/stolsma/go-p4pack/pkg/signals"
+	shell "github.com/stolsma/go-p4pack/pkg/sshshell"
 )
 
 var log logging.Logger
@@ -29,6 +30,7 @@ type Config struct {
 	*dpdkiConfig.Config `json:"chassis"`
 	FlowTest            *flowtest.Config `json:"flowtest"`
 	Logging             *logging.Config  `json:"logging"`
+	SSHShell            *shell.Config    `json:"sshshell"`
 }
 
 func main() {
@@ -85,7 +87,9 @@ func main() {
 	}
 
 	// start ssh shell cli server with our CLI
-	startSSHShell(appCtx, createShellRoot)
+	if conf.SSHShell != nil {
+		startSSHShell(appCtx, createShellRoot, conf.SSHShell)
+	}
 
 	// initialize wait for signals to react on during packet processing
 	log.Info("p4vswitch pipeline and SSH CLI server running!")
