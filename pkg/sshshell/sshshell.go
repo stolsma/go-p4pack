@@ -1,7 +1,7 @@
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
-package main
+package sshshell
 
 import (
 	"bytes"
@@ -12,16 +12,15 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	shell "github.com/stolsma/go-p4pack/pkg/sshshell"
 )
 
 type cliHandler struct {
-	s   *shell.Shell
+	s   *Shell
 	cli *cobra.Command
 }
 
-func createHandlerFactory(createRoot func() *cobra.Command) shell.HandlerFactory {
-	return func(s *shell.Shell) shell.Handler {
+func createHandlerFactory(createRoot func() *cobra.Command) HandlerFactory {
+	return func(s *Shell) Handler {
 		rw := s.GetReadWrite()  // get the read/write stream of this shell session
 		cliRoot := createRoot() // create a new cli root for each session
 		cliRoot.SetOut(rw)      // set output stream
@@ -137,9 +136,9 @@ func (h *cliHandler) HandleEOF() error {
 }
 
 // Start a SSH server with given context and DPDK Infra API
-func startSSHShell(ctx context.Context, createRoot func() *cobra.Command, config *shell.Config) {
+func StartSSHShell(ctx context.Context, createRoot func() *cobra.Command, config *Config) {
 	go func(ctx context.Context, createRoot func() *cobra.Command) {
-		sshServer := &shell.SSHServer{
+		sshServer := &SSHServer{
 			Config:         config,
 			HandlerFactory: createHandlerFactory(createRoot),
 		}
