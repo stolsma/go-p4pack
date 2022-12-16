@@ -76,6 +76,7 @@ type FlowSet struct {
 	flowsReceive map[string]*ExpectedFlows
 	ctx          context.Context
 	cancelFn     context.CancelFunc
+	running      bool
 }
 
 func FlowSetCreate(name string) *FlowSet {
@@ -100,6 +101,10 @@ func (fs *FlowSet) Init(config []FlowConfig, ifaces IfaceMap) error {
 }
 
 func (fs *FlowSet) Start(ctx context.Context) error {
+	if fs.running {
+		return fmt.Errorf("flowset already running")
+	}
+
 	ctx, cancelFn := context.WithCancel(ctx)
 	fs.ctx = ctx
 	fs.cancelFn = cancelFn
@@ -117,6 +122,8 @@ func (fs *FlowSet) Start(ctx context.Context) error {
 		iface.Open()
 		go sendFlows(fs.ctx, iface, flows)
 	}
+
+	fs.running = true
 
 	return nil
 }
@@ -184,11 +191,18 @@ func sendFlows(ctx context.Context, intf *Intf, flows *Flows) {
 }
 
 func (fs *FlowSet) Stop() error {
+	if !fs.running {
+		return fmt.Errorf("flowset already stopped")
+	}
 	// stop SendFlow GoThreads
-	// TODO: Implement
+	fs.cancelFn()
 
 	// stop ReceiveCheck GoThreads
 	// TODO: Implement
+
+	fs.ctx = nil
+	fs.cancelFn = nil
+	fs.running = false
 
 	return nil
 }
