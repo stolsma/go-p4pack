@@ -11,7 +11,17 @@ import (
 	"sync"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/eal"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 )
+
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkswx/swxruntime", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 // MainCtx is the main lcore context and is supplied to the function running in the main lcore.
 type MainCtx struct {
@@ -157,6 +167,9 @@ func (rt *Runtime) launchWorkers() error {
 // Returns number of parsed args and error.
 func (rt *Runtime) Start(args []string) (n int, err error) {
 	var wg sync.WaitGroup
+
+	log.Infof("Starting swxruntime with dpdkargs: %v", args)
+
 	wg.Add(1)
 	go func() {
 		// we should initialize EAL and run EAL threads in a separate goroutine because its thread is going to be acquired
@@ -181,12 +194,17 @@ func (rt *Runtime) Start(args []string) (n int, err error) {
 	}()
 	wg.Wait()
 	rt.running = true
+
+	log.Info("swxruntime started!")
+
 	return
 }
 
 // Stop sends signal to all threads to finish execution.
 // Warning: it will block until all lcore threads finish execution.
 func (rt *Runtime) Stop() (err error) {
+	log.Info("Stopping swxruntime!")
+
 	// stop DPDK SWX workers
 	err = rt.ExecOnMain(func(ctx *MainCtx) error {
 		return ThreadsStop()
@@ -195,14 +213,17 @@ func (rt *Runtime) Stop() (err error) {
 		return
 	}
 
+	log.Info("swxruntime worker threads stopped, stopping main thread!")
+
 	// quit main LCore function
 	err = rt.ExecOnMain(func(ctx *MainCtx) error {
 		// TODO Does this work????
 		ctx.done = true
 		return nil
 	})
-
 	rt.running = false
+
+	log.Info("swxruntime stopped (worker and main threads)!")
 	return
 }
 

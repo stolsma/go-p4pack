@@ -62,23 +62,29 @@ func (di *DpdkInfra) init(dpdkArgs []string) error {
 		return err
 	}
 
-	// create stores
+	// create store and initialize PortMngr and PipeMngr
+	log.Info("Create Pktmbuf store...")
 	di.PktmbufStore = store.NewStore[*pktmbuf.Pktmbuf]()
 
+	log.Info("Initialize PortMngr...")
 	di.PortMngr = &portmngr.PortMngr{}
 	di.PortMngr.Init()
 
+	log.Info("Initialize PipeMngr...")
 	di.PipeMngr = &pipemngr.PipeMngr{}
 	di.PipeMngr.Init()
+
+	log.Info("Dpdkinfra initialization ready!")
 
 	return nil
 }
 
 // empty & remove stores and cleanup initialized managers
-func (di *DpdkInfra) Cleanup() {
+func (di *DpdkInfra) Cleanup() error {
 	di.PipeMngr.Cleanup()
 	di.PortMngr.Cleanup()
 	di.PktmbufStore.Clear()
+	return dpdkswx.Runtime.Stop()
 }
 
 // PktmbufCreate creates a pktmuf and stores it in the dpdkinfra pktmbuf store

@@ -104,7 +104,10 @@ func main() {
 	log.Info("p4vswitch pipeline requested to stop!")
 
 	// cleanup DpdkInfra environment
-	dpdki.Cleanup()
+	err = dpdki.Cleanup()
+	if err != nil {
+		log.Infof("dpdki cleanup failed! err: %v", err)
+	}
 
 	// Wait a small time to let everything shutdown...
 	time.Sleep(1000 * time.Millisecond)
