@@ -31,15 +31,15 @@ const (
 )
 
 type Params struct {
-	size     uint
-	numaNode uint32
+	Size     uint
+	NumaNode uint32
 }
 
 // Ring represents a Ring device
 type Ring struct {
 	*device.Device
 	r    *C.struct_rte_ring
-	size uint
+	size uint // must be a power of two
 }
 
 // Create and initialize Ring device
@@ -50,7 +50,7 @@ func (r *Ring) Init(name string, params *Params, clean func()) error {
 	defer C.free(unsafe.Pointer(cname))
 
 	// Resource create
-	ring := C.rte_ring_create(cname, (C.uint)(params.size), (C.int)(params.numaNode), (C.uint)(flags))
+	ring := C.rte_ring_create(cname, (C.uint)(params.Size), (C.int)(params.NumaNode), (C.uint)(flags))
 	if r == nil {
 		return errors.New("Ring creation error")
 	}
@@ -60,7 +60,7 @@ func (r *Ring) Init(name string, params *Params, clean func()) error {
 	r.SetType("RING")
 	r.SetName(name)
 	r.r = ring
-	r.size = params.size
+	r.size = params.Size
 
 	r.SetPipelineOutPort(device.NotBound)
 	r.SetPipelineInPort(device.NotBound)

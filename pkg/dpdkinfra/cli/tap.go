@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -64,8 +65,11 @@ func initTap(parent *cobra.Command) {
 				t = args[0]
 			}
 
-			list, err := dpdki.TapList(t)
-			if err != nil {
+			list := ""
+			if err := dpdki.TapStore.Iterate(func(key string, tap *tap.Tap) error {
+				list += fmt.Sprintf("  %s \n", tap.Name())
+				return nil
+			}); err != nil {
 				cmd.PrintErrf("TAP %s show err: %d\n", t, err)
 				return
 			}

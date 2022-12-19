@@ -10,14 +10,19 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/netlink"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ring"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/sourcesink"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 )
 
 type InterfaceConfig struct {
-	Name   string     `json:"name"`
-	Tap    *TapParams `json:"tap"`
-	Vdev   *PMDParams `json:"vdev"`
-	EthDev *PMDParams `json:"ethdev"`
+	Name   string        `json:"name"`
+	Tap    *TapParams    `json:"tap"`
+	Vdev   *PMDParams    `json:"vdev"`
+	EthDev *PMDParams    `json:"ethdev"`
+	Ring   *RingParams   `json:"ring"`
+	Source *SourceParams `json:"source"`
+	Sink   *SinkParams   `json:"sink"`
 }
 
 func (i *InterfaceConfig) GetName() string {
@@ -29,6 +34,26 @@ type TapParams struct {
 	Rx *struct {
 		Mtu     int    `json:"mtu"`
 		PktMbuf string `json:"pktmbuf"`
+	}
+}
+
+type RingParams struct {
+	Size     uint   `json:"size"`
+	NumaNode uint32 `json:"numanode"`
+}
+
+type SourceParams struct {
+	Rx *struct {
+		FileName string `json:"filename"`
+		NLoops   uint64 `json:"n_loops"`
+		NPktsMax uint32 `json:"n_pkts_max"`
+		PktMbuf  string `json:"pktmbuf"`
+	}
+}
+
+type SinkParams struct {
+	Tx *struct {
+		FileName string `json:"filename"`
 	}
 }
 
@@ -73,13 +98,71 @@ func (c *Config) ApplyInterface() error {
 			// create tap
 			_, err := dpdki.TapCreate(name, &tp)
 			if err != nil {
-				return fmt.Errorf("TAP %s create err: %d", name, err)
+				return fmt.Errorf("tap %s create err: %d", name, err)
 			}
 
 			// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
 			netlink.InterfaceUp(name)
 			netlink.RemoveAllAddr(name)
-			log.Infof("TAP %s created!", name)
+			log.Infof("tap %s created!", name)
+			continue
+		}
+
+		if ifConfig.Ring != nil {
+			var r ring.Params
+			name := ifConfig.GetName()
+
+			r.Size = ifConfig.Ring.Size
+			r.NumaNode = ifConfig.Ring.NumaNode
+
+			// create ring
+			_, err := dpdki.RingCreate(name, &r)
+			if err != nil {
+				return fmt.Errorf("ring %s create err: %d", name, err)
+			}
+
+			log.Infof("ring %s created!", name)
+			continue
+		}
+
+		if ifConfig.Source != nil {
+			var s sourcesink.SourceParams
+			name := ifConfig.GetName()
+
+			// get Packet buffer memory pool & all other parameters
+			mpName := ifConfig.Source.Rx.PktMbuf
+			s.Pktmbuf = dpdki.PktmbufStore.Get(mpName)
+			if s.Pktmbuf == nil {
+				return fmt.Errorf("source %s mempool %s not found", name, mpName)
+			}
+			s.FileName = ifConfig.Source.Rx.FileName
+			s.NLoops = ifConfig.Source.Rx.NLoops
+			s.NPktsMax = ifConfig.Source.Rx.NPktsMax
+
+			// create ring
+			_, err := dpdki.SourceCreate(name, &s)
+			if err != nil {
+				return fmt.Errorf("ring %s create err: %d", name, err)
+			}
+
+			log.Infof("Ring %s created!", name)
+			continue
+		}
+
+		if ifConfig.Sink != nil {
+			var s sourcesink.SinkParams
+			name := ifConfig.GetName()
+
+			// get parameters
+			s.FileName = ifConfig.Sink.Tx.FileName
+
+			// create sink
+			_, err := dpdki.SinkCreate(name, &s)
+			if err != nil {
+				return fmt.Errorf("sink %s create err: %d", name, err)
+			}
+
+			log.Infof("sink %s created!", name)
 			continue
 		}
 

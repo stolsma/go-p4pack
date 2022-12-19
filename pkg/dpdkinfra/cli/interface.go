@@ -4,10 +4,12 @@
 package cli
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
 func initInterface(parent *cobra.Command) {
@@ -122,10 +124,17 @@ func initPmdShow(parent *cobra.Command) {
 				t = args[0]
 			}
 
-			list, err := dpdki.EthdevList(t)
-			if err != nil {
+			list := ""
+			if err := dpdki.EthdevStore.Iterate(func(key string, ethdev *ethdev.Ethdev) error {
+				list += fmt.Sprintf("  %s \n", ethdev.DevName())
+				devInfo, err := ethdev.GetPortInfoString()
+				list += fmt.Sprintf("%s \n", devInfo)
+				list += "\n"
+				return err
+			}); err != nil {
 				cmd.PrintErrf("PMD %v show err: %v\n", t, err)
 			}
+
 			cmd.Printf("Known PMD interfaces:\n%v", list)
 		},
 	}

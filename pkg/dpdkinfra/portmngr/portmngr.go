@@ -11,6 +11,7 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/device"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ring"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/sourcesink"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
@@ -33,6 +34,8 @@ type PortMngr struct {
 	EthdevStore *store.Store[*ethdev.Ethdev]
 	RingStore   *store.Store[*ring.Ring]
 	TapStore    *store.Store[*tap.Tap]
+	SourceStore *store.Store[*sourcesink.Source]
+	SinkStore   *store.Store[*sourcesink.Sink]
 }
 
 // Initialize the non system intrusive portmngr singleton parts
@@ -41,12 +44,16 @@ func (pm *PortMngr) Init() error {
 	pm.EthdevStore = store.NewStore[*ethdev.Ethdev]()
 	pm.RingStore = store.NewStore[*ring.Ring]()
 	pm.TapStore = store.NewStore[*tap.Tap]()
+	pm.SourceStore = store.NewStore[*sourcesink.Source]()
+	pm.SinkStore = store.NewStore[*sourcesink.Sink]()
 
 	return nil
 }
 
 func (pm *PortMngr) Cleanup() {
 	// empty & remove stores
+	pm.SinkStore.Clear()
+	pm.SourceStore.Clear()
 	pm.TapStore.Clear()
 	pm.RingStore.Clear()
 	pm.EthdevStore.Clear()
@@ -62,6 +69,14 @@ func (pm *PortMngr) GetPort(name string) PortType {
 	}
 
 	if port := pm.RingStore.Get(name); port != nil {
+		return port
+	}
+
+	if port := pm.SinkStore.Get(name); port != nil {
+		return port
+	}
+
+	if port := pm.SourceStore.Get(name); port != nil {
 		return port
 	}
 
@@ -91,7 +106,55 @@ func (pm *PortMngr) IteratePorts(fn func(key string, value PortType) error) erro
 		return err
 	}
 
+	// iterate sink store
+	if err := pm.SinkStore.Iterate(func(k string, v *sourcesink.Sink) error {
+		return fn(k, v)
+	}); err != nil {
+		return err
+	}
+
+	// iterate source store
+	if err := pm.SourceStore.Iterate(func(k string, v *sourcesink.Source) error {
+		return fn(k, v)
+	}); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (pm *PortMngr) SourceCreate(name string, params *sourcesink.SourceParams) (*sourcesink.Source, error) {
+	var t sourcesink.Source
+	if pm.SourceStore.Contains(name) {
+		return nil, errors.New("source with this name exists")
+	}
+
+	if err := t.Init(name, params, func() {
+		pm.SourceStore.Delete(name)
+	}); err != nil {
+		return nil, err
+	}
+
+	// add node to list
+	pm.SourceStore.Set(name, &t)
+	return &t, nil
+}
+
+func (pm *PortMngr) SinkCreate(name string, params *sourcesink.SinkParams) (*sourcesink.Sink, error) {
+	var t sourcesink.Sink
+	if pm.SinkStore.Contains(name) {
+		return nil, errors.New("sink with this name exists")
+	}
+
+	if err := t.Init(name, params, func() {
+		pm.SinkStore.Delete(name)
+	}); err != nil {
+		return nil, err
+	}
+
+	// add node to list
+	pm.SinkStore.Set(name, &t)
+	return &t, nil
 }
 
 func (pm *PortMngr) TapCreate(name string, params *tap.Params) (*tap.Tap, error) {
@@ -109,15 +172,6 @@ func (pm *PortMngr) TapCreate(name string, params *tap.Params) (*tap.Tap, error)
 	// add node to list
 	pm.TapStore.Set(name, &t)
 	return &t, nil
-}
-
-func (pm *PortMngr) TapList(name string) (string, error) {
-	result := ""
-	err := pm.TapStore.Iterate(func(key string, tap *tap.Tap) error {
-		result += fmt.Sprintf("  %s \n", tap.Name())
-		return nil
-	})
-	return result, err
 }
 
 // RingCreate creates a ring and stores it in the portmngr ring store
@@ -158,18 +212,6 @@ func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Et
 	pm.EthdevStore.Set(name, &e)
 	log.Infof("ethdev %s created", name)
 	return &e, nil
-}
-
-func (pm *PortMngr) EthdevList(name string) (string, error) {
-	result := ""
-	err := pm.EthdevStore.Iterate(func(key string, ethdev *ethdev.Ethdev) error {
-		result += fmt.Sprintf("  %s \n", ethdev.DevName())
-		devInfo, err := ethdev.GetPortInfoString()
-		result += fmt.Sprintf("%s \n", devInfo)
-		result += "\n"
-		return err
-	})
-	return result, err
 }
 
 // LinkUp sets the given link (depicted with port name) to up if supported
