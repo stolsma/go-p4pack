@@ -24,9 +24,9 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/device"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 	lled "github.com/yerden/go-dpdk/ethdev"
-	"github.com/yerden/go-dpdk/mempool"
 )
 
 var log logging.Logger
@@ -51,7 +51,7 @@ type Params struct {
 		Mtu       uint32
 		NQueues   uint16
 		QueueSize uint32
-		Mempool   *mempool.Mempool
+		Mempool   *pktmbuf.Pktmbuf
 		Rss       ParamsRss
 	}
 	Tx struct {
@@ -185,7 +185,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 			(C.ushort)(params.Rx.QueueSize),
 			(C.uint)(cpuID),
 			nil,
-			(*C.struct_rte_mempool)(unsafe.Pointer(params.Rx.Mempool)),
+			(*C.struct_rte_mempool)(unsafe.Pointer(params.Rx.Mempool.Mempool())),
 		)
 		if status < 0 {
 			return common.Err(status)

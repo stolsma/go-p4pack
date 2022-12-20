@@ -12,23 +12,27 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
-func initInterface(parent *cobra.Command) {
-	interf := &cobra.Command{
+func interfaceCmd(parent *cobra.Command) *cobra.Command {
+	interfaceCmd := &cobra.Command{
 		Use:     "interface",
 		Short:   "Base command for all interface actions",
 		Aliases: []string{"int"},
 	}
 
-	initStats(interf)
-	initLinkUpDown(interf)
+	interfaceHotplugCmd(interfaceCmd)
+	interfaceCreateCmd(interfaceCmd)
+	interfaceShowCmd(interfaceCmd)
+	interfaceStatsCmd(interfaceCmd)
+	interfaceLinkUpDownCmd(interfaceCmd)
 
-	initTap(interf)
-	initPmd(interf)
-	parent.AddCommand(interf)
+	interfacePmdCmd(interfaceCmd)
+	parent.AddCommand(interfaceCmd)
+
+	return interfaceCmd
 }
 
-func initStats(parent *cobra.Command) {
-	stats := &cobra.Command{
+func interfaceStatsCmd(parent *cobra.Command) *cobra.Command {
+	statsCmd := &cobra.Command{
 		Use:     "stats [name]",
 		Short:   "Show statistics of all (or one given) interface(s)",
 		Aliases: []string{"st"},
@@ -57,16 +61,18 @@ func initStats(parent *cobra.Command) {
 		},
 	}
 	var re, li, si bool
-	stats.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
-	stats.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for interfaces.")
-	stats.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for interfaces.")
-	stats.MarkFlagsMutuallyExclusive("long", "short")
+	statsCmd.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
+	statsCmd.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for interfaces.")
+	statsCmd.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for interfaces.")
+	statsCmd.MarkFlagsMutuallyExclusive("long", "short")
 
-	parent.AddCommand(stats)
+	parent.AddCommand(statsCmd)
+
+	return statsCmd
 }
 
-func initLinkUpDown(parent *cobra.Command) {
-	lud := &cobra.Command{
+func interfaceLinkUpDownCmd(parent *cobra.Command) *cobra.Command {
+	ludCmd := &cobra.Command{
 		Use:     "link [name] [up/down]",
 		Short:   "Set the interface up or down",
 		Aliases: []string{"set"},
@@ -98,21 +104,25 @@ func initLinkUpDown(parent *cobra.Command) {
 			cmd.Printf("Interface link state changed to: %v\n", ud)
 		},
 	}
-	parent.AddCommand(lud)
+	parent.AddCommand(ludCmd)
+
+	return ludCmd
 }
 
-func initPmd(parent *cobra.Command) {
-	pmd := &cobra.Command{
+func interfacePmdCmd(parent *cobra.Command) *cobra.Command {
+	pmdCmd := &cobra.Command{
 		Use:   "pmd",
 		Short: "Base command for all pmd actions",
 	}
 
-	initPmdShow(pmd)
-	parent.AddCommand(pmd)
+	interfacePmdShowCmd(pmdCmd)
+	parent.AddCommand(pmdCmd)
+
+	return pmdCmd
 }
 
-func initPmdShow(parent *cobra.Command) {
-	show := &cobra.Command{
+func interfacePmdShowCmd(parent *cobra.Command) *cobra.Command {
+	showCmd := &cobra.Command{
 		Use:     "show [name]",
 		Short:   "Show information of all (or one given) PMD interface(s)",
 		Aliases: []string{"sh"},
@@ -139,10 +149,12 @@ func initPmdShow(parent *cobra.Command) {
 		},
 	}
 	var re, li, si bool
-	show.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
-	show.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for PMD interfaces.")
-	show.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for PMD interfaces.")
-	show.MarkFlagsMutuallyExclusive("long", "short")
+	showCmd.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
+	showCmd.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for PMD interfaces.")
+	showCmd.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for PMD interfaces.")
+	showCmd.MarkFlagsMutuallyExclusive("long", "short")
 
-	parent.AddCommand(show)
+	parent.AddCommand(showCmd)
+
+	return showCmd
 }

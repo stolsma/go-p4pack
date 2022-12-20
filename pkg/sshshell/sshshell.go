@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -62,6 +64,8 @@ func (h *cliHandler) HandleLine(ctx context.Context, line string) error {
 	return nil
 }
 
+const activeHelpMarker = "_activeHelp_ "
+
 func (h *cliHandler) HandleCompletion(ctx context.Context, line string) (string, error) {
 	log.Infof("Completion LINE from %s: %s", h.s.InstanceName(), line)
 
@@ -80,20 +84,37 @@ func (h *cliHandler) HandleCompletion(ctx context.Context, line string) (string,
 	h.cli.ExecuteContext(ctx)
 
 	// process output - parce directive and split returned completion hints + help
-	args := strings.Split(bufOut.String(), "\n")
-	directive := args[len(args)-2]
-	args = args[0 : len(args)-2]
+	hints := strings.Split(bufOut.String(), "\n")
+	directive, err := parseDirective(hints[len(hints)-2])
+	hints = hints[0 : len(hints)-2]
 
-	// process completion
-	if len(args) > 1 {
-		// more then one hint, so print them
-		h.s.Output(createHintHelp(args))
-	} else if directive == ":4" && len(args) == 1 {
-		// only one hint so replace last argument
-		gArgs := strings.Split(line, " ")
-		dumArgs := strings.Split(args[0], "\t")
-		gArgs[len(gArgs)-1] = dumArgs[0] + " "
-		line = strings.Join(gArgs, " ")
+	// check if error happened
+	if directive&cobra.ShellCompDirectiveError == 0 && err == nil {
+		// no error so process completion
+		if len(hints) > 1 {
+			// more then one hint, so print them
+			h.s.Output(createHintHelp(hints))
+		} else if directive&cobra.ShellCompDirectiveNoFileComp != 0 {
+			if len(hints) == 1 {
+				// only one hint
+				lineArgs := strings.Split(line, " ")
+				if strings.Contains(hints[0], activeHelpMarker) {
+					// its an active help response
+					help := strings.Replace(hints[0], activeHelpMarker, "", 1)
+					h.s.OutputLine(help)
+				} else {
+					// normal hint so replace last (partial) argument
+					hint := strings.Split(hints[0], "\t")
+					lineArgs[len(lineArgs)-1] = hint[0]
+					line = strings.Join(lineArgs, " ")
+				}
+			}
+
+			// don't add space at the end when requested
+			if directive&cobra.ShellCompDirectiveNoSpace == 0 {
+				line += " "
+			}
+		}
 	}
 
 	// put cli readers/writers back
@@ -105,8 +126,14 @@ func (h *cliHandler) HandleCompletion(ctx context.Context, line string) (string,
 	return line, nil
 }
 
+func parseDirective(arg string) (cobra.ShellCompDirective, error) {
+	directive, err := strconv.ParseInt(strings.Replace(arg, ":", "", 1), 10, 0)
+	return cobra.ShellCompDirective(directive), err
+}
+
 func createHintHelp(args []string) string {
 	list := map[string]string{}
+	hints := []string{}
 	l := 0
 	for _, arg := range args {
 		// split hint command and possible included hint command help text
@@ -116,15 +143,22 @@ func createHintHelp(args []string) string {
 		} else {
 			list[sArg[0]] = ""
 		}
+
+		// store hints for sorting
+		hints = append(hints, sArg[0])
+
 		// get the longest hint command string length for formatting
 		if len(sArg[0]) > l {
 			l = len(sArg[0])
 		}
 	}
 
+	// sort hints
+	sort.Strings(hints)
+
 	result := ""
-	for key, h := range list {
-		result += fmt.Sprintf("%-*s %s\n", l, key, h)
+	for _, hint := range hints {
+		result += fmt.Sprintf("  %-*s\t%s\n", l, hint, list[hint])
 	}
 	return result
 }

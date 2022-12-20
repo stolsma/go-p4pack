@@ -17,13 +17,14 @@ func init() {
 	})
 }
 
-// GetCommand returns the root command after adding the dpdkinfra service commands
-func GetCommand(root *cobra.Command) *cobra.Command {
-	log.Info("Adding dpdkinfra cli")
+// GetCommand returns the given parent (root) command with all dpdkinfra sub commands added
+func GetCommand(parent *cobra.Command) *cobra.Command {
+	log.Info("Adding dpdkinfra cli commands")
 
-	// add all supported root commands
-	initPipeline(root)
-	initPktmbuf(root)
-	initInterface(root)
-	return root
+	// add all dpdkinfra cli commands
+	pktmbufCmd(parent)
+	interfaceCmd(parent)
+	pipelineCmd(parent)
+
+	return parent
 }

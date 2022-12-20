@@ -117,7 +117,7 @@ func (c *Config) ApplyPipeline(basePath string) error {
 			pName := t.GetIfaceName()
 			port := dpdki.GetPort(pName)
 			if port == nil {
-				return fmt.Errorf("Pipeconfig %s input device %s does not exist", pipeName, pName)
+				return fmt.Errorf("pipeconfig %s input device %s does not exist", pipeName, pName)
 			}
 
 			err = port.BindToPipelineInputPort(pl, i, t.GetRxQueue(), t.GetBsz())

@@ -191,7 +191,7 @@ func (c *Config) ApplyInterface() error {
 			p.Rx.Mtu = vh.Rx.Mtu
 			p.Rx.NQueues = vh.Rx.NQueues
 			p.Rx.QueueSize = vh.Rx.QueueSize
-			p.Rx.Mempool = mp.Mempool()
+			p.Rx.Mempool = mp
 			p.Rx.Rss = vh.Rx.Rss
 			p.Tx.NQueues = vh.Tx.NQueues
 			p.Tx.QueueSize = vh.Tx.QueueSize

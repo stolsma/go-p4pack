@@ -5,32 +5,39 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 	"golang.org/x/net/context"
 )
 
-func initPipeline(parent *cobra.Command) {
-	var pipeline = &cobra.Command{
+func pipelineCmd(parent *cobra.Command) *cobra.Command {
+	var pipelineCmd = &cobra.Command{
 		Use:     "pipeline",
 		Short:   "pipeline",
 		Aliases: []string{"pl"},
 	}
 
-	initPlInfo(pipeline)
-	initPlStats(pipeline)
-	parent.AddCommand(pipeline)
+	pipelineInfoCmd(pipelineCmd)
+	pipelineStatsCmd(pipelineCmd)
+	parent.AddCommand(pipelineCmd)
+	return pipelineCmd
 }
 
-func initPlInfo(parent *cobra.Command) {
-	parent.AddCommand(&cobra.Command{
+func pipelineInfoCmd(parent *cobra.Command) *cobra.Command {
+	infoCmd := &cobra.Command{
 		Use:     "info [pipeline]",
 		Short:   "info",
 		Aliases: []string{"i"},
 		Args:    cobra.MaximumNArgs(1),
+		ValidArgsFunction: ValidateArguments(
+			completePipelineArg,
+			AppendLastHelp(1, "This command does not take any more arguments"),
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
 			plName := ""
@@ -51,16 +58,24 @@ func initPlInfo(parent *cobra.Command) {
 				cmd.Printf(plInfo.String())
 			}
 		},
-	})
+	}
+
+	parent.AddCommand(infoCmd)
+
+	return infoCmd
 }
 
-func initPlStats(parent *cobra.Command) {
+func pipelineStatsCmd(parent *cobra.Command) *cobra.Command {
 	var re, li, si bool
-	stats := &cobra.Command{
+	statsCmd := &cobra.Command{
 		Use:     "stats [pipeline]",
 		Short:   "stats",
 		Aliases: []string{"st"},
 		Args:    cobra.MaximumNArgs(1),
+		ValidArgsFunction: ValidateArguments(
+			completePipelineArg,
+			AppendLastHelp(1, "This command does not take any more arguments"),
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
 			plName := ""
@@ -86,11 +101,13 @@ func initPlStats(parent *cobra.Command) {
 			}
 		},
 	}
-	stats.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
-	stats.Flags().BoolVarP(&li, "long", "l", false, "Show all information.")
-	stats.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information.")
-	stats.MarkFlagsMutuallyExclusive("long", "short")
-	parent.AddCommand(stats)
+	statsCmd.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
+	statsCmd.Flags().BoolVarP(&li, "long", "l", false, "Show all information.")
+	statsCmd.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information.")
+	statsCmd.MarkFlagsMutuallyExclusive("long", "short")
+
+	parent.AddCommand(statsCmd)
+	return statsCmd
 }
 
 func printRepeatedPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string) {
@@ -132,4 +149,31 @@ func printSinglePipelineStats(cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, pl
 
 	cmd.Printf("\n%s", stats)
 	return strings.Count(stats, "\n"), nil
+}
+
+// complete a pipeline argument
+func completePipelineArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp
+
+	// get pipeline list
+	listPl := pipelineList()
+
+	// filter list with string to complete
+	completions := filterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
+
+	return completions, directive
+}
+
+// retrieve all pipeline names and return in sorted list.
+func pipelineList() []string {
+	dpdki := dpdkinfra.Get()
+
+	list := []string{}
+	dpdki.PipelineStore.Iterate(func(key string, value *pipeline.Pipeline) error {
+		list = append(list, key)
+		return nil
+	})
+	sort.Strings(list)
+
+	return list
 }
