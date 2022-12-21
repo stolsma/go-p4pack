@@ -14,8 +14,18 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/swxruntime"
+	"github.com/stolsma/go-p4pack/pkg/logging"
 	"github.com/yerden/go-dpdk/mempool"
 )
+
+var log logging.Logger
+
+func init() {
+	// keep the logger up to date, also after new log config
+	logging.Register("dpdkswx/pktmbuf", func(logger logging.Logger) {
+		log = logger
+	})
+}
 
 const RteMbufDefaultBufSize uint = C.RTE_MBUF_DEFAULT_BUF_SIZE
 const RteMbufDefaultDataroom uint = C.RTE_MBUF_DEFAULT_DATAROOM

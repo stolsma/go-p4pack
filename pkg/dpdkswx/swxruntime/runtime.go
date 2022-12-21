@@ -59,6 +59,7 @@ func (rt *Runtime) ExecOnMainAsync(ret chan error, fn func(*MainCtx) error) <-ch
 		return ret
 	}
 
+	log.Info("Entering 'execute on main' !")
 	ctx := &rt.mainCtx
 	ctx.ch <- &mainJob{fn, ret}
 	return ret
@@ -130,14 +131,16 @@ func panicCatcher(fn func(*MainCtx) error, ctx *MainCtx) (err error) {
 	return err
 }
 
-// to run as main core function listener
-func (rt *Runtime) mainCoreFuncListener() int {
-	// get context and init job channel
+// to run as main core job listener
+func (rt *Runtime) mainCoreJobListener() int {
+	// get context
 	ctx := &rt.mainCtx
-	ctx.ch = make(chan *mainJob)
+
+	log.Info("Listening for jobs to execute on main core !")
 
 	// run loop
 	for job := range ctx.ch {
+		log.Info("Got job to execute on main core !")
 		err := panicCatcher(job.fn, ctx)
 		if job.ret != nil {
 			job.ret <- err
@@ -146,6 +149,8 @@ func (rt *Runtime) mainCoreFuncListener() int {
 			break
 		}
 	}
+
+	log.Info("Main core job listener is done!")
 	return 0
 }
 
@@ -175,6 +180,7 @@ func (rt *Runtime) Start(args []string) (n int, err error) {
 		// we should initialize EAL and run EAL threads in a separate goroutine because its thread is going to be acquired
 		// by EAL and become main lcore thread!!!!!!
 		runtime.LockOSThread()
+		log.Info("swxruntime: lock this go thread to dpdk main core (lockOSThread)")
 
 		// initialize EAL
 		if n, err = eal.RteEalInit(args); err != nil {
@@ -188,9 +194,15 @@ func (rt *Runtime) Start(args []string) (n int, err error) {
 			return
 		}
 
-		// mainCoreFuncListener will block until it stops on main lcore, see [Thread.Stop]
+		// create job communication channel for main core listener. MUST be created before calling wg.Done() to prevent
+		// race condition when execution of "executeOnMain" before job channel is ready!
+		ctx := &rt.mainCtx
+		ctx.ch = make(chan *mainJob)
+		log.Info("Ready for job listening on main core")
 		wg.Done()
-		rt.mainCoreFuncListener()
+
+		// mainCoreJobListener will block until it stops running on main lcore, see [Thread.Stop]
+		rt.mainCoreJobListener()
 	}()
 	wg.Wait()
 	rt.running = true
