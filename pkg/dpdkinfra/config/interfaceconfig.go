@@ -18,7 +18,6 @@ import (
 type InterfaceConfig struct {
 	Name   string        `json:"name"`
 	Tap    *TapParams    `json:"tap"`
-	Vdev   *PMDParams    `json:"vdev"`
 	EthDev *PMDParams    `json:"ethdev"`
 	Ring   *RingParams   `json:"ring"`
 	Source *SourceParams `json:"source"`
@@ -61,7 +60,7 @@ type PMDParams struct {
 	DevName string `json:"devname"`
 	DevArgs string `json:"devargs"`
 	Rx      *struct {
-		Mtu         uint32           `json:"mtu"`
+		Mtu         uint16           `json:"mtu"`
 		NQueues     uint16           `json:"nqueues"`
 		QueueSize   uint32           `json:"queuesize"`
 		PktMbuf     string           `json:"pktmbuf"`
@@ -167,17 +166,10 @@ func (c *Config) ApplyInterface() error {
 		}
 
 		// create and/or bind & configure PMD devices to this environment
-		if ifConfig.Vdev != nil || ifConfig.EthDev != nil {
-			var vh *PMDParams
+		if ifConfig.EthDev != nil {
+			var vh = ifConfig.EthDev
 			var p ethdev.Params
 			name := ifConfig.GetName()
-
-			if ifConfig.Vdev != nil {
-				vh = ifConfig.Vdev
-				p.DevHotplugEnabled = true
-			} else {
-				vh = ifConfig.EthDev
-			}
 
 			// get Packet buffer memory pool
 			mp := dpdki.PktmbufStore.Get(vh.Rx.PktMbuf)
@@ -187,7 +179,6 @@ func (c *Config) ApplyInterface() error {
 
 			// copy parameters
 			p.DevName = vh.DevName
-			p.DevArgs = vh.DevArgs
 			p.Rx.Mtu = vh.Rx.Mtu
 			p.Rx.NQueues = vh.Rx.NQueues
 			p.Rx.QueueSize = vh.Rx.QueueSize

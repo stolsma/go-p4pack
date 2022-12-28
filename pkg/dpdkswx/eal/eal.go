@@ -5,11 +5,16 @@ package eal
 
 /*
 #include <stdlib.h>
+#include <string.h>
+
 #include <rte_eal.h>
 #include <rte_lcore.h>
+#include <rte_devargs.h>
+
 */
 import "C"
 import (
+	"fmt"
 	"unsafe"
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
@@ -99,4 +104,103 @@ func HasPCI() bool {
 // Returns the current process type.
 func ProcessType() int {
 	return int(C.rte_eal_process_type())
+}
+
+// Type of generic device
+type RteDevtype uint32
+
+const (
+	RteDevtypeAllowed RteDevtype = iota
+	RteDevtypeBlocked
+	RteDevtypeVirtual
+)
+
+type DevArgs struct {
+	dType   RteDevtype // the device type
+	bus     string     // name of the bus
+	name    string     // name of the device
+	drvArgs string     // driver arguments of the device string
+}
+
+func (d *DevArgs) Bus() string {
+	return d.bus
+}
+
+func (d *DevArgs) Name() string {
+	return d.name
+}
+
+func (d *DevArgs) DrvArgs() string {
+	return d.drvArgs
+}
+
+func (d *DevArgs) Type() RteDevtype {
+	return d.dType
+}
+
+func (d *DevArgs) SetArgs(bus string, name string, drvArgs string, dType ...RteDevtype) {
+	if len(dType) == 0 {
+		d.dType = RteDevtypeAllowed
+	} else {
+		d.dType = dType[0]
+	}
+	d.bus = bus
+	d.name = name
+	d.drvArgs = drvArgs
+}
+
+// parses device arguments like "virtio_user4,path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3" to devargs struct
+func (d *DevArgs) Parse(id string) error {
+	var da C.struct_rte_devargs
+
+	cID := C.CString(id)
+	defer C.free(unsafe.Pointer(cID))
+
+	res := C.rte_devargs_parse(&da, cID) //nolint:gocritic
+	if res != 0 {
+		return common.Err(res)
+	}
+	defer C.rte_devargs_reset(&da) //nolint:gocritic
+
+	// get all values and transfer to go struct
+	d.dType = RteDevtype(da._type)
+	d.name = C.GoString(&da.name[0])
+	if da.bus != nil {
+		d.bus = C.GoString(da.bus.name)
+	}
+	d.drvArgs = C.GoString(*(**C.char)(unsafe.Pointer(&da.anon0[0])))
+
+	return nil
+}
+
+// Hotplug add a DPDK device. Returns error when something went wrong.
+func HotplugAdd(d *DevArgs) error {
+	cBus := C.CString(d.bus)
+	defer C.free(unsafe.Pointer(cBus))
+	cDevName := C.CString(d.name)
+	defer C.free(unsafe.Pointer(cDevName))
+	cDrvStr := C.CString(d.drvArgs)
+	defer C.free(unsafe.Pointer(cDrvStr))
+
+	status := C.rte_eal_hotplug_add(cBus, cDevName, cDrvStr)
+	if status != 0 {
+		return fmt.Errorf("hotplug add failed (%w)", common.Err(status))
+	}
+
+	return nil
+}
+
+// Hotplug remove a DPDK device. Returns error when something went wrong.
+func HotplugRemove(d *DevArgs) error {
+	cBus := C.CString(d.bus)
+	defer C.free(unsafe.Pointer(cBus))
+	cDevName := C.CString(d.name)
+	defer C.free(unsafe.Pointer(cDevName))
+
+	status := C.rte_eal_hotplug_remove(cBus, cDevName)
+	if status != 0 {
+		return fmt.Errorf("hotplug remove failed (%w)", common.Err(status))
+	}
+
+	return nil
 }

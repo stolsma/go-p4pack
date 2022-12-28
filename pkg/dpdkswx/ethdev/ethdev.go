@@ -43,12 +43,9 @@ const RetaConfSize = (EthRssRetaSize512 / EthRetaGroupSize)
 type ParamsRss []uint16
 
 type Params struct {
-	DevName           string
-	DevArgs           string
-	DevHotplugEnabled bool
-
-	Rx struct {
-		Mtu       uint32
+	DevName string
+	Rx      struct {
+		Mtu       uint16
 		NQueues   uint16
 		QueueSize uint32
 		Mempool   *pktmbuf.Pktmbuf
@@ -71,32 +68,24 @@ type Ethdev struct {
 	nTxQ    uint16
 }
 
+// Initialize ethdev struct
+func (ethdev *Ethdev) Init(name string) {
+	ethdev.Device = &device.Device{}
+	ethdev.SetType("PMD")
+	ethdev.SetName(name)
+}
+
 // Create and/or configure DPDK Ethdev device. Returns error when something went wrong.
-func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
+func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	var portInfo DevInfo
 	var status C.int
 	var res error
 
 	// TODO add all params to check!
 	// Check input params
-	if (name == "") || (params == nil) || (params.Rx.NQueues == 0) ||
+	if (params == nil) || (params.Rx.NQueues == 0) ||
 		(params.Rx.QueueSize == 0) || (params.Tx.NQueues == 0) || (params.Tx.QueueSize == 0) {
 		return nil
-	}
-
-	cDevName := C.CString(params.DevName)
-	defer C.free(unsafe.Pointer(cDevName))
-	cDevArgs := C.CString(params.DevArgs)
-	defer C.free(unsafe.Pointer(cDevArgs))
-
-	// Performing Device Hotplug and valid for only VDEVs
-	if params.DevHotplugEnabled {
-		vdev := C.CString("vdev")
-		status = C.rte_eal_hotplug_add(vdev, cDevName, cDevArgs)
-		C.free(unsafe.Pointer(vdev))
-		if status != 0 {
-			return fmt.Errorf("link init: dev:%s hotplug add failed (%w)", params.DevName, common.Err(status))
-		}
 	}
 
 	// get port id and save to this struct!
@@ -112,30 +101,33 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 		return res
 	}
 
+	// check requested MTU value
+	var mtu = portInfo.MaxMTU()
+	if params.Rx.Mtu > 0 {
+		if params.Rx.Mtu >= portInfo.MinMTU() && params.Rx.Mtu <= portInfo.MaxMTU() {
+			mtu = params.Rx.Mtu
+		} else {
+			return errors.New("requested MTU is smaller than minimum MTU or larger then maximum MTU supported for this port")
+		}
+	}
+
 	// check maximum number of queues to configure to the max supported queues on device
-	if params.Rx.NQueues > portInfo.MaxRxQueues() || params.Rx.NQueues > portInfo.MaxTxQueues() {
-		return errors.New("link init: Number of Tx or Rx queues to large")
+	if params.Rx.NQueues > portInfo.MaxRxQueues() || params.Tx.NQueues > portInfo.MaxTxQueues() {
+		return errors.New("number of Tx or Rx queues to large")
 	}
 
 	// check requested receive RSS parameters for this device
 	rss := params.Rx.Rss
 	if rss != nil {
 		if portInfo.RetaSize() == 0 || portInfo.RetaSize() > EthRssRetaSize512 {
-			return errors.New("link init: ethdev redirection table size is 0 or too large (>512)")
+			return errors.New("ethdev redirection table size (rss) is 0 or too large (>512)")
 		}
 
 		for i := 0; i < len(rss); i++ {
 			if rss[i] >= params.Rx.NQueues {
-				return errors.New("link init: RSS queue id > maximum requested # of Rx queues")
+				return errors.New("the RSS queue id > maximum requested # of Rx queues")
 			}
 		}
-	}
-
-	// configure port config attributes to new port config
-	// TODO Check if device supports it!
-	var mtu uint32 = 9000 - (EtherHdrLen + EtherCRCLen)
-	if params.Rx.Mtu > 0 {
-		mtu = params.Rx.Mtu
 	}
 
 	// define device rss parameters
@@ -149,9 +141,9 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 	}
 
 	// configure the ethdev device
-	res = portID.DevConfigure(params.Tx.NQueues, params.Tx.NQueues,
+	res = portID.DevConfigure(params.Rx.NQueues, params.Tx.NQueues,
 		lled.OptLinkSpeeds(0),
-		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: mtu, SplitHdrSize: 0}),
+		lled.OptRxMode(lled.RxMode{MqMode: uint(rxMqMode), MTU: uint32(mtu), SplitHdrSize: 0}),
 		lled.OptTxMode(lled.TxMode{MqMode: EthMqTxNone}),
 		optRss,
 		lled.OptLoopbackMode(0),
@@ -167,7 +159,7 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 			if !errors.Is(res, syscall.ENOTSUP) {
 				return res
 			}
-			log.Infof("PMD %s does not support promiscuous mode", name)
+			log.Infof("PMD %s does not support promiscuous mode", ethdev.Name())
 		}
 	}
 
@@ -224,13 +216,10 @@ func (ethdev *Ethdev) Init(name string, params *Params, clean func()) error {
 			portID.Stop()
 			return res
 		}
-		log.Infof("PMD %s does not support SetLinkUp", name)
+		log.Infof("PMD %s does not support SetLinkUp", ethdev.Name())
 	}
 
 	// Node fill in
-	ethdev.Device = &device.Device{}
-	ethdev.SetType("PMD")
-	ethdev.SetName(name)
 	ethdev.devName, res = portID.Name()
 	if res != nil {
 		return res
@@ -424,6 +413,28 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	return info, nil
 }
 
+// Get list of attached ethdev ports (look out: an Ethdev device could have multiple ports!)
+func GetAttachedPorts() ([]*Ethdev, error) {
+	var ports []*Ethdev
+	attachedPorts := lled.ValidPorts()
+	for _, port := range attachedPorts {
+		var e Ethdev
+
+		name, err := port.Name()
+		if err != nil {
+			return nil, fmt.Errorf("error reading port name: %v", err)
+		}
+
+		// set ethdev struct
+		e.Init(name)
+		e.devName = name
+		e.Port = &port
+		ports = append(ports, &e)
+	}
+
+	return ports, nil
+}
+
 /****************************************************************************************
  * Everything defined below this line is missing in go-dpdk and needs to be upstreamed! *
  ****************************************************************************************/
@@ -460,8 +471,32 @@ func (info *DevInfo) InterfaceName() string {
 	return C.GoString(C.if_indextoname(info.if_index, &buf[0]))
 }
 
-// RetaSize returns Device redirection table size, the total number of
-// entries.
+type RteEthDevFlags uint32
+
+// Device flags, flags internally saved in rte_eth_dev_data.dev_flags and reported in rte_eth_dev_info.dev_flags.
+const (
+	// PMD supports thread-safe flow operations
+	RteEthDevFlowOpsThreadSafe RteEthDevFlags = C.RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE
+	// Device supports link state interrupt
+	RteEthDevIntrLsc = C.RTE_ETH_DEV_INTR_LSC
+	// Device is a bonded slave
+	RteEthDevBondedSlave = C.RTE_ETH_DEV_BONDED_SLAVE
+	// Device supports device removal interrupt
+	RteEthDevIntrRmv = C.RTE_ETH_DEV_INTR_RMV
+	// Device is port representor
+	RteEthDevRepresentor = C.RTE_ETH_DEV_REPRESENTOR
+	// Device does not support MAC change after started
+	RteEthDevNoliveMACAddr = C.RTE_ETH_DEV_NOLIVE_MAC_ADDR
+	// Queue xstats filled automatically by ethdev layer. PMDs filling the queue xstats themselves should not set this flag
+	RteEthDevAutofillQueueXstats = C.RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS
+)
+
+// Device flags.
+func (info *DevInfo) DeviceFlags() RteEthDevFlags {
+	return RteEthDevFlags(*info.dev_flags)
+}
+
+// RetaSize returns Device redirection table size, the total number of entries.
 func (info *DevInfo) RetaSize() uint16 {
 	return uint16(info.reta_size)
 }
@@ -488,7 +523,7 @@ func (info *DevInfo) MinMTU() uint16 {
 
 // MaxMTU returns Device maximum supported MTU size.
 func (info *DevInfo) MaxMTU() uint16 {
-	return uint16(info.min_mtu)
+	return uint16(info.max_mtu)
 }
 
 func (info *DevInfo) String() string {
@@ -532,6 +567,38 @@ func (info *DevInfo) String() string {
 	return result
 }
 
+/*
+	TODO Following fields need to be added as retrieval function:
+	min_rx_bufsize         _Ctype_uint32_t
+	max_rx_pktlen          _Ctype_uint32_t
+	max_lro_pkt_size       _Ctype_uint32_t
+	max_mac_addrs          _Ctype_uint32_t
+	max_hash_mac_addrs     _Ctype_uint32_t
+	max_vfs                _Ctype_uint16_t
+	max_vmdq_pools         _Ctype_uint16_t
+	rx_seg_capa            _Ctype_struct_rte_eth_rxseg_capa
+	rx_offload_capa        _Ctype_uint64_t
+	tx_offload_capa        _Ctype_uint64_t
+	rx_queue_offload_capa  _Ctype_uint64_t
+	tx_queue_offload_capa  _Ctype_uint64_t
+	hash_key_size          _Ctype_uint8_t
+	flow_type_rss_offloads _Ctype_uint64_t
+	default_rxconf         _Ctype_struct_rte_eth_rxconf
+	default_txconf         _Ctype_struct_rte_eth_txconf
+	vmdq_queue_base        _Ctype_uint16_t
+	vmdq_queue_num         _Ctype_uint16_t
+	vmdq_pool_base         _Ctype_uint16_t
+	rx_desc_lim            _Ctype_struct_rte_eth_desc_lim
+	tx_desc_lim            _Ctype_struct_rte_eth_desc_lim
+	speed_capa             _Ctype_uint32_t
+	nb_rx_queues           _Ctype_uint16_t
+	nb_tx_queues           _Ctype_uint16_t
+	default_rxportconf     _Ctype_struct_rte_eth_dev_portconf
+	default_txportconf     _Ctype_struct_rte_eth_dev_portconf
+	dev_capa               _Ctype_uint64_t
+	switch_info            _Ctype_struct_rte_eth_switch_info
+*/
+
 //
 // Extra Ethdev methods to be upstreamed
 //
@@ -544,4 +611,28 @@ var PromiscuousModeStr = [2]string{0: "off", 1: "on"}
 
 func (ethdev *Ethdev) PromiscuousGet() int {
 	return int(C.rte_eth_promiscuous_get(C.ushort(*ethdev.Port)))
+}
+
+func RteEthDevTxOffloadName(txOffload uint64) string {
+	// no free needed, returned C string is static!
+	cTxOffloadName := C.rte_eth_dev_tx_offload_name(C.uint64_t(txOffload))
+	return C.GoString(cTxOffloadName)
+}
+
+func RteEthDevRxOffloadName(rxOffload uint64) string {
+	// no free needed, returned C string is static!
+	cRxOffloadName := C.rte_eth_dev_rx_offload_name(C.uint64_t(rxOffload))
+	return C.GoString(cRxOffloadName)
+}
+
+func RteEthDevCapabilityName(capability uint64) string {
+	// no free needed, returned C string is static!
+	cCapName := C.rte_eth_dev_capability_name(C.uint64_t(capability))
+	return C.GoString(cCapName)
+}
+
+func RteEthLinkSpeedToString(linkSpeed uint32) string {
+	// no free needed, returned C string is static!
+	cLinkSpeedName := C.rte_eth_link_speed_to_str(C.uint32_t(linkSpeed))
+	return C.GoString(cLinkSpeedName)
 }

@@ -20,6 +20,7 @@ func init() {
 type Config struct {
 	*config.Base
 	PktMbufs   []*PktmbufConfig   `json:"pktmbufs"`
+	Devices    DevicesConfig      `json:"devices"`
 	Interfaces []*InterfaceConfig `json:"interfaces"`
 	Pipelines  []*PipelineConfig  `json:"pipelines"`
 }
@@ -28,6 +29,10 @@ type Config struct {
 func (c *Config) Apply() error {
 	// Order of processing is important because Pipeline needs Interface and Interface needs Pktmbuf!!
 	if err := c.ApplyPktmbuf(); err != nil {
+		return err
+	}
+
+	if err := c.Devices.Apply(); err != nil {
 		return err
 	}
 

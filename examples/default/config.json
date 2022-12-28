@@ -16,6 +16,10 @@
       "cachesize": 256,
       "cpuid": 0
     }],
+    "devices": [
+      "virtio_user0,path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
+      "virtio_user1,path=/dev/vhost-net,queues=1,queue_size=32,iface=sw4"
+    ],
     "interfaces" : [{
       "name": "sw1",
       "tap": {
@@ -34,9 +38,8 @@
       }
     },{
       "name": "sw3",
-      "vdev": {
+      "ethdev": {
         "devname": "virtio_user0",
-        "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
         "rx": {
           "mtu": 1500,
           "nqueues": 1,
@@ -51,9 +54,8 @@
       }
     },{
       "name": "sw4",
-      "vdev": {
+      "ethdev": {
         "devname": "virtio_user1",
-        "devargs": "path=/dev/vhost-net,queues=1,queue_size=32,iface=sw4",
         "rx": {
           "mtu": 1500,
           "nqueues": 1,

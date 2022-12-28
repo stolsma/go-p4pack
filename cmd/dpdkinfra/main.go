@@ -47,42 +47,42 @@ func main() {
 	conf := &Config{Config: dpdkiConfig.Create()}
 	err := config.LoadConfig(configFile, conf)
 	if err != nil {
-		log.Fatalf("Configuration load failed: ", err)
+		log.Fatalf("Configuration load failed: %v", err)
 	}
 
 	// configure logging with our app requirements
 	if conf.Logging != nil {
 		err = conf.Logging.Apply()
 		if err != nil {
-			log.Fatalf("Applying logging config failed:", err)
+			log.Fatalf("Applying logging config failed: %v", err)
 		}
 	}
 
 	// initialize the dpdkinfra singleton
 	dpdki, err := dpdkinfra.CreateAndInit(strings.Split(dpdkArgs, " "))
 	if err != nil {
-		log.Fatalf("DPDKInfraInit failed:", err)
+		log.Fatalf("DPDKInfraInit failed: %v", err)
 	}
 
 	// Apply given dpdkinfra configuration
 	if conf.Config != nil {
 		err = conf.Config.Apply()
 		if err != nil {
-			log.Fatalf("Applying chassis config failed:", err)
+			log.Fatalf("Applying chassis config failed: %v", err)
 		}
 	}
 
 	// initialize the flowtest singleton
 	_, err = flowtest.CreateAndInit(appCtx)
 	if err != nil {
-		log.Fatalf("Flow tests initialization failed:", err)
+		log.Fatalf("Flow tests initialization failed: %v", err)
 	}
 
 	// apply given flowtest configuration
 	if conf.FlowTest != nil {
 		err = conf.FlowTest.Apply()
 		if err != nil {
-			log.Fatalf("Applying predefined flowtests failed:", err)
+			log.Fatalf("Applying predefined flowtests failed: %v", err)
 		}
 	}
 

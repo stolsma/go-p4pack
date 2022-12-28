@@ -9,6 +9,7 @@ import (
 
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra/store"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/device"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/eal"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ring"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/sourcesink"
@@ -83,6 +84,14 @@ func (pm *PortMngr) GetPort(name string) PortType {
 	return nil
 }
 
+func (pm *PortMngr) ContainsPort(name string) bool {
+	return pm.TapStore.Contains(name) ||
+		pm.EthdevStore.Contains(name) ||
+		pm.RingStore.Contains(name) ||
+		pm.SinkStore.Contains(name) ||
+		pm.SourceStore.Contains(name)
+}
+
 // Iterate over the contents of all the device stores
 func (pm *PortMngr) IteratePorts(fn func(key string, value PortType) error) error {
 	// iterate tap store
@@ -125,8 +134,8 @@ func (pm *PortMngr) IteratePorts(fn func(key string, value PortType) error) erro
 
 func (pm *PortMngr) SourceCreate(name string, params *sourcesink.SourceParams) (*sourcesink.Source, error) {
 	var t sourcesink.Source
-	if pm.SourceStore.Contains(name) {
-		return nil, errors.New("source with this name exists")
+	if pm.ContainsPort(name) {
+		return nil, errors.New("port with this name exists already")
 	}
 
 	if err := t.Init(name, params, func() {
@@ -142,8 +151,8 @@ func (pm *PortMngr) SourceCreate(name string, params *sourcesink.SourceParams) (
 
 func (pm *PortMngr) SinkCreate(name string, params *sourcesink.SinkParams) (*sourcesink.Sink, error) {
 	var t sourcesink.Sink
-	if pm.SinkStore.Contains(name) {
-		return nil, errors.New("sink with this name exists")
+	if pm.ContainsPort(name) {
+		return nil, errors.New("port with this name exists already")
 	}
 
 	if err := t.Init(name, params, func() {
@@ -159,8 +168,8 @@ func (pm *PortMngr) SinkCreate(name string, params *sourcesink.SinkParams) (*sou
 
 func (pm *PortMngr) TapCreate(name string, params *tap.Params) (*tap.Tap, error) {
 	var t tap.Tap
-	if pm.TapStore.Contains(name) {
-		return nil, errors.New("tap with this name exists")
+	if pm.ContainsPort(name) {
+		return nil, errors.New("port with this name exists already")
 	}
 
 	if err := t.Init(name, params, func() {
@@ -177,8 +186,8 @@ func (pm *PortMngr) TapCreate(name string, params *tap.Params) (*tap.Tap, error)
 // RingCreate creates a ring and stores it in the portmngr ring store
 func (pm *PortMngr) RingCreate(name string, params *ring.Params) (*ring.Ring, error) {
 	var r ring.Ring
-	if pm.RingStore.Contains(name) {
-		return nil, errors.New("ring with this name exists")
+	if pm.ContainsPort(name) {
+		return nil, errors.New("port with this name exists already")
 	}
 
 	// initialize
@@ -194,15 +203,33 @@ func (pm *PortMngr) RingCreate(name string, params *ring.Params) (*ring.Ring, er
 	return &r, nil
 }
 
+// Hotplug the DPDK ethdev device defined by given DPDK device argument string
+func (pm *PortMngr) HotplugAdd(device string) (*eal.DevArgs, error) {
+	var devArgs eal.DevArgs
+
+	err := devArgs.Parse(device)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing device argument string: %v", err)
+	}
+
+	err = eal.HotplugAdd(&devArgs)
+	if err != nil {
+		return nil, fmt.Errorf("error creating hotplug device: %v", err)
+	}
+
+	return &devArgs, nil
+}
+
 // EthdevCreate creates a ethdev and stores it in the portmngr ethdev store
 func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Ethdev, error) {
 	var e ethdev.Ethdev
-	if pm.EthdevStore.Contains(name) {
-		return nil, errors.New("ethdev with this name exists")
+	if pm.ContainsPort(name) {
+		return nil, errors.New("port with this name exists already")
 	}
 
-	// initialize
-	if err := e.Init(name, params, func() {
+	// initialize struct, then initialize port
+	e.Init(name)
+	if err := e.Initialize(params, func() {
 		pm.EthdevStore.Delete(name)
 	}); err != nil {
 		return nil, err
@@ -214,7 +241,13 @@ func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Et
 	return &e, nil
 }
 
+// Get all available raw DPDK devices
+func (pm *PortMngr) GetAttachedPorts() ([]*ethdev.Ethdev, error) {
+	return ethdev.GetAttachedPorts()
+}
+
 // LinkUp sets the given link (depicted with port name) to up if supported
+// TODO remove, instead get port and do directly
 func (pm *PortMngr) LinkUp(name string) error {
 	port := pm.GetPort(name)
 	if port == nil {
@@ -225,6 +258,7 @@ func (pm *PortMngr) LinkUp(name string) error {
 }
 
 // LinkDown sets the given link (depicted with port name) to down if supported
+// TODO remove, instead get port and do directly
 func (pm *PortMngr) LinkDown(name string) error {
 	port := pm.GetPort(name)
 	if port == nil {

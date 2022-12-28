@@ -142,7 +142,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// get MTU if available
 			var mtu int64 = 1500
 			if len(args) > 7 {
-				mtu, err = strconv.ParseInt(args[7], 0, 32)
+				mtu, err = strconv.ParseInt(args[7], 0, 16)
 				if err != nil {
 					cmd.PrintErrf("MTU (%s) is not a correct integer: %d\n", args[7], err)
 					return
@@ -151,7 +151,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 					mtu = 1500
 				}
 			}
-			params.Rx.Mtu = uint32(mtu)
+			params.Rx.Mtu = uint16(mtu)
 
 			// get promiscuous mode if available, else default value
 			var prom = true
