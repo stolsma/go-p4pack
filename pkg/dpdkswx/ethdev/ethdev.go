@@ -62,7 +62,7 @@ type Params struct {
 // Ethdev represents a Ethdev record
 type Ethdev struct {
 	*device.Device
-	*lled.Port
+	port    lled.Port
 	devName string
 	nRxQ    uint16
 	nTxQ    uint16
@@ -93,7 +93,7 @@ func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	if res != nil {
 		return res
 	}
-	ethdev.Port = &portID
+	ethdev.port = portID
 
 	// get ethDev device information
 	res = ethdev.InfoGet(&portInfo)
@@ -242,10 +242,14 @@ func (ethdev *Ethdev) DevName() string {
 	return ethdev.devName
 }
 
+func (ethdev *Ethdev) SamePort(ethdev2 *Ethdev) bool {
+	return ethdev.port == ethdev2.port
+}
+
 // Free deletes the current Ethdev record and calls the clean callback function given at init
 func (ethdev *Ethdev) Free() error {
 	// Release all resources for this port
-	ethdev.Stop()
+	ethdev.port.Stop()
 
 	// call given clean callback function if given during init
 	if ethdev.Clean() != nil {
@@ -317,7 +321,7 @@ func (ethdev *Ethdev) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int
 }
 
 func (ethdev *Ethdev) IsUp() (bool, error) {
-	linkParams, result := ethdev.EthLinkGet()
+	linkParams, result := ethdev.port.EthLinkGet()
 	if result != nil {
 		return false, result
 	}
@@ -326,7 +330,7 @@ func (ethdev *Ethdev) IsUp() (bool, error) {
 }
 
 func (ethdev *Ethdev) SetLinkUp() error {
-	err := ethdev.Port.SetLinkUp()
+	err := ethdev.port.SetLinkUp()
 	if err != nil {
 		if !errors.Is(err, syscall.ENOTSUP) {
 			return err
@@ -339,7 +343,7 @@ func (ethdev *Ethdev) SetLinkUp() error {
 }
 
 func (ethdev *Ethdev) SetLinkDown() error {
-	err := ethdev.Port.SetLinkDown()
+	err := ethdev.port.SetLinkDown()
 	if err != nil {
 		if !errors.Is(err, syscall.ENOTSUP) {
 			return err
@@ -354,7 +358,7 @@ func (ethdev *Ethdev) SetLinkDown() error {
 func (ethdev *Ethdev) GetPortStatsString() (string, error) {
 	var stats lled.Stats
 	var info string
-	err := ethdev.Port.StatsGet(&stats)
+	err := ethdev.port.StatsGet(&stats)
 	if err != nil {
 		return info, err
 	}
@@ -373,7 +377,7 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	var portInfo DevInfo
 	info := ""
 
-	linkParams, err := ethdev.EthLinkGet()
+	linkParams, err := ethdev.port.EthLinkGet()
 	if err != nil {
 		return "", err
 	}
@@ -399,7 +403,7 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 	info += "\n"
 
 	var addr = &lled.MACAddr{}
-	err = ethdev.MACAddrGet(addr)
+	err = ethdev.port.MACAddrGet(addr)
 	if err == nil {
 		info += fmt.Sprintf("  MAC Address            : %s \n", addr.String())
 	}
@@ -418,7 +422,7 @@ func GetAttachedPorts() ([]*Ethdev, error) {
 	var ports []*Ethdev
 	attachedPorts := lled.ValidPorts()
 	for _, port := range attachedPorts {
-		var e Ethdev
+		var e = Ethdev{}
 
 		name, err := port.Name()
 		if err != nil {
@@ -428,7 +432,7 @@ func GetAttachedPorts() ([]*Ethdev, error) {
 		// set ethdev struct
 		e.Init(name)
 		e.devName = name
-		e.Port = &port
+		e.port = port
 		ports = append(ports, &e)
 	}
 
@@ -604,13 +608,13 @@ func (info *DevInfo) String() string {
 //
 
 func (ethdev *Ethdev) InfoGet(info *DevInfo) error {
-	return common.Err(C.rte_eth_dev_info_get(C.ushort(*ethdev.Port), (*C.struct_rte_eth_dev_info)(info)))
+	return common.Err(C.rte_eth_dev_info_get(C.ushort(ethdev.port), (*C.struct_rte_eth_dev_info)(info)))
 }
 
 var PromiscuousModeStr = [2]string{0: "off", 1: "on"}
 
 func (ethdev *Ethdev) PromiscuousGet() int {
-	return int(C.rte_eth_promiscuous_get(C.ushort(*ethdev.Port)))
+	return int(C.rte_eth_promiscuous_get(C.ushort(ethdev.port)))
 }
 
 func RteEthDevTxOffloadName(txOffload uint64) string {

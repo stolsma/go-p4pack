@@ -203,8 +203,8 @@ func (pm *PortMngr) RingCreate(name string, params *ring.Params) (*ring.Ring, er
 	return &r, nil
 }
 
-// Hotplug the DPDK ethdev device defined by given DPDK device argument string
-func (pm *PortMngr) HotplugAdd(device string) (*eal.DevArgs, error) {
+// Attach (hotplug) the DPDK ethdev device defined by given DPDK device argument string
+func (pm *PortMngr) AttachDevice(device string) (*eal.DevArgs, error) {
 	var devArgs eal.DevArgs
 
 	err := devArgs.Parse(device)
@@ -214,7 +214,36 @@ func (pm *PortMngr) HotplugAdd(device string) (*eal.DevArgs, error) {
 
 	err = eal.HotplugAdd(&devArgs)
 	if err != nil {
-		return nil, fmt.Errorf("error creating hotplug device: %v", err)
+		return nil, err
+	}
+
+	return &devArgs, nil
+}
+
+// Detach (hotplug) the DPDK ethdev device defined by given DPDK device argument string
+func (pm *PortMngr) DetachDevice(device string) (*eal.DevArgs, error) {
+	var devArgs eal.DevArgs
+
+	err := devArgs.Parse(device)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing device argument string: %v", err)
+	}
+
+	// first check if all ports related to the requested device are free
+	err = pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
+		if v.DevName() == devArgs.Name() {
+			return errors.New("some ports on the device are still used")
+		}
+		return nil
+	})
+	if err != nil {
+		return &devArgs, err
+	}
+
+	// then detach device
+	err = eal.HotplugRemove(&devArgs)
+	if err != nil {
+		return nil, err
 	}
 
 	return &devArgs, nil
@@ -241,9 +270,46 @@ func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Et
 	return &e, nil
 }
 
-// Get all available raw DPDK devices
+// Get all raw DPDK ethdev ports
 func (pm *PortMngr) GetAttachedPorts() ([]*ethdev.Ethdev, error) {
 	return ethdev.GetAttachedPorts()
+}
+
+// Get all used DPDK ethdev ports
+func (pm *PortMngr) GetUsedPorts() ([]*ethdev.Ethdev, error) {
+	var ports []*ethdev.Ethdev
+
+	pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
+		ports = append(ports, v)
+		return nil
+	})
+
+	return ports, nil
+}
+
+// Get all unused raw DPDK ethdev ports
+func (pm *PortMngr) GetUnusedPorts() ([]*ethdev.Ethdev, error) {
+	var ports []*ethdev.Ethdev
+
+	rawPorts, err := ethdev.GetAttachedPorts()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rp := range rawPorts {
+		err := pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
+			if v.SamePort(rp) {
+				return errors.New("port is used")
+			}
+			return nil
+		})
+		if err != nil {
+			continue
+		}
+		ports = append(ports, rp)
+	}
+
+	return ports, nil
 }
 
 // LinkUp sets the given link (depicted with port name) to up if supported

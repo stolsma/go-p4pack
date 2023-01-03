@@ -21,7 +21,7 @@ func (c DevicesConfig) Apply() error {
 
 	// hotplug devices
 	for _, devArgString := range c {
-		devArgs, err := dpdki.HotplugAdd(devArgString)
+		devArgs, err := dpdki.AttachDevice(devArgString)
 		if err != nil {
 			log.Infof("Hotplug (devargs: %s) error: %v", devArgString, err)
 			return fmt.Errorf("error creating hotplug device: %v", err)

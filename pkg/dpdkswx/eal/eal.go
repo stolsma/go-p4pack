@@ -173,7 +173,7 @@ func (d *DevArgs) Parse(id string) error {
 	return nil
 }
 
-// Hotplug add a DPDK device. Returns error when something went wrong.
+// Hotplug add (attach) a DPDK device. Returns error when something went wrong.
 func HotplugAdd(d *DevArgs) error {
 	cBus := C.CString(d.bus)
 	defer C.free(unsafe.Pointer(cBus))
@@ -190,7 +190,7 @@ func HotplugAdd(d *DevArgs) error {
 	return nil
 }
 
-// Hotplug remove a DPDK device. Returns error when something went wrong.
+// Hotplug remove (detach) a DPDK device. Returns error when something went wrong.
 func HotplugRemove(d *DevArgs) error {
 	cBus := C.CString(d.bus)
 	defer C.free(unsafe.Pointer(cBus))

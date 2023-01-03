@@ -6,6 +6,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
 func interfaceHotplugCmd(parent *cobra.Command) *cobra.Command {
@@ -24,28 +25,38 @@ func interfaceHotplugCmd(parent *cobra.Command) *cobra.Command {
 }
 
 func interfaceHotplugListCmd(parent *cobra.Command) *cobra.Command {
+	var used, notused bool
 	listCmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List all attached (hotplug) devices on the system",
 		Aliases: []string{"l"},
+		ValidArgsFunction: ValidateArguments(
+			AppendLastHelp(0, "This command does not take any more arguments"),
+		),
 		Run: func(cmd *cobra.Command, args []string) {
-			dpdki := dpdkinfra.Get()
+			var devices []string
+			var hs string
 
-			// get list of attached EAL ports
-			ports, err := dpdki.GetAttachedPorts()
-			if err != nil {
-				cmd.PrintErrf("Error reading attached port list: %v", err)
-				return
+			if used {
+				devices = deviceList(UsedDevices)
+				hs = "Used"
+			} else if notused {
+				devices = deviceList(UnusedDevices)
+				hs = "Not used"
+			} else {
+				devices = deviceList(AllDevices)
+				hs = "All"
 			}
 
-			// print portlist
-			cmd.Println("Valid EAL Ports:")
-			for _, port := range ports {
-				cmd.Printf("  %s\n", port.Name())
+			cmd.Printf("%s attached DPDK devices:\n", hs)
+			for _, device := range devices {
+				cmd.Printf("  %s\n", device)
 			}
 		},
 	}
-
+	listCmd.Flags().BoolVarP(&used, "used", "u", false, "Show all used DPDK devices.")
+	listCmd.Flags().BoolVarP(&notused, "notused", "n", false, "Show all not used DPDK devices.")
+	listCmd.MarkFlagsMutuallyExclusive("used", "notused")
 	parent.AddCommand(listCmd)
 
 	return listCmd
@@ -64,7 +75,7 @@ func interfaceHotplugAttachCmd(parent *cobra.Command) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
 
-			devArgs, err := dpdki.HotplugAdd(args[0])
+			devArgs, err := dpdki.AttachDevice(args[0])
 			if err != nil {
 				cmd.PrintErrf("Error creating device: %v", err)
 				return
@@ -86,13 +97,19 @@ func interfaceHotplugDetachCmd(parent *cobra.Command) *cobra.Command {
 		Aliases: []string{"a"},
 		Args:    cobra.ExactArgs(1),
 		ValidArgsFunction: ValidateArguments(
-			completeDeviceList,
+			completeUnusedDeviceList,
 			AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Println("Command not implemented yet!")
-			// dpdki := dpdkinfra.Get()
-			// cmd.Printf("Device %s detached!\n", args[0])
+			dpdki := dpdkinfra.Get()
+
+			_, err := dpdki.DetachDevice(args[0])
+			if err != nil {
+				cmd.PrintErrf("Error detaching device: %v\n", err)
+				return
+			}
+
+			cmd.Printf("Device %s is detached!\n", args[0])
 		},
 	}
 
@@ -101,11 +118,20 @@ func interfaceHotplugDetachCmd(parent *cobra.Command) *cobra.Command {
 	return detachCmd
 }
 
-func completeDeviceList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+type DeviceFilter uint
+
+const (
+	NoFilter DeviceFilter = iota
+	AllDevices
+	UsedDevices
+	UnusedDevices
+)
+
+func completeUnusedDeviceList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
 
 	// get device list
-	listDevice := deviceList()
+	listDevice := deviceList(UnusedDevices)
 
 	// filter list with string to complete
 	completions := filterCompletions(listDevice, toComplete, &directive, "No devices available for completion!")
@@ -113,18 +139,36 @@ func completeDeviceList(cmd *cobra.Command, args []string, toComplete string) ([
 	return completions, directive
 }
 
-func deviceList() []string {
+func deviceList(filter DeviceFilter) []string {
+	var ports []*ethdev.Ethdev
+	var key = make(map[string]bool)
+	var err error
 	dpdki := dpdkinfra.Get()
 	list := []string{}
 
 	// get list of attached EAL devices
-	ports, err := dpdki.GetAttachedPorts()
+	switch filter {
+	case AllDevices:
+		ports, err = dpdki.GetAttachedPorts()
+	case UsedDevices:
+		ports, err = dpdki.GetUsedPorts()
+	case UnusedDevices:
+		ports, err = dpdki.GetUnusedPorts()
+	default:
+		return list
+	}
+
 	if err != nil {
 		return list
 	}
 
+	// copy devicenames and filter duplicates
 	for _, port := range ports {
-		list = append(list, port.DevName())
+		devName := port.DevName()
+		if !key[devName] {
+			key[devName] = true
+			list = append(list, devName)
+		}
 	}
 
 	return list
