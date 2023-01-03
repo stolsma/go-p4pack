@@ -11,6 +11,8 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
+type PktmbufsConfig []*PktmbufConfig
+
 type PktmbufConfig struct {
 	Name       string `json:"name"`
 	BufferSize uint   `json:"buffersize"`
@@ -43,14 +45,14 @@ func (mpc *PktmbufConfig) GetCPUID() int {
 }
 
 // Create pktmbufs through the DpdkInfra API
-func (c *Config) ApplyPktmbuf() error {
+func (c PktmbufsConfig) Apply() error {
 	dpdki := dpdkinfra.Get()
 	if dpdki == nil {
 		return errors.New("dpdkinfra module is not initialized")
 	}
 
 	// Create PktMbuf memory pool
-	for _, m := range c.PktMbufs {
+	for _, m := range c {
 		name := m.GetName()
 		_, err := dpdki.PktmbufCreate(name, m.GetBufferSize(), m.GetPoolSize(), m.GetCacheSize(), m.GetCPUID())
 		if err != nil {

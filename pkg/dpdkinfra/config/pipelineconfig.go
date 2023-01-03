@@ -11,6 +11,8 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
+type PipelinesConfig []*PipelineConfig
+
 type PipelineConfig struct {
 	Name        string           `json:"name"`
 	NumaNode    int              `json:"numanode"`
@@ -96,14 +98,14 @@ type TableConfig struct {
 }
 
 // Create pipelines with a given pipeline configuration list
-func (c *Config) ApplyPipeline(basePath string) error {
+func (c PipelinesConfig) Apply(basePath string) error {
 	dpdki := dpdkinfra.Get()
 	if dpdki == nil {
 		return errors.New("dpdkinfra module is not initialized")
 	}
 
 	// Create pipeline
-	for _, pConfig := range c.Pipelines {
+	for _, pConfig := range c {
 		pConfig.SetBasePath(basePath)
 		pipeName := pConfig.GetName()
 		pl, err := dpdki.PipelineCreate(pipeName, pConfig.GetNumaNode())

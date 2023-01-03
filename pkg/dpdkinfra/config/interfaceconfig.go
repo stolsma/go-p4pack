@@ -15,6 +15,8 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 )
 
+type InterfacesConfig []*InterfaceConfig
+
 type InterfaceConfig struct {
 	Name   string        `json:"name"`
 	Tap    *TapParams    `json:"tap"`
@@ -74,14 +76,14 @@ type PMDParams struct {
 }
 
 // Create interfaces with a given interface configuration list
-func (c *Config) ApplyInterface() error {
+func (c InterfacesConfig) Apply() error {
 	dpdki := dpdkinfra.Get()
 	if dpdki == nil {
 		return errors.New("dpdkinfra module is not initialized")
 	}
 
 	// create/bind & configure TAP interface devices
-	for _, ifConfig := range c.Interfaces {
+	for _, ifConfig := range c {
 		if ifConfig.Tap != nil {
 			var tp tap.Params
 			name := ifConfig.GetName()
@@ -197,8 +199,13 @@ func (c *Config) ApplyInterface() error {
 			// TODO Temporaraly set interface up here but refactor interfaces into seperate dpdki module!
 			netlink.InterfaceUp(name)
 			netlink.RemoveAllAddr(name)
+
 			log.Infof("PMD %s (device name: %s) created!", name, vh.DevName)
+			continue
 		}
+
+		log.Errorf("Unknown interface type of wrong configuration for interface %s", ifConfig.GetName())
+		return errors.New("error in interafce configuration")
 	}
 
 	return nil
