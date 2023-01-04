@@ -83,7 +83,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 		Args:  cobra.MatchAll(cobra.MinimumNArgs(7), cobra.MaximumNArgs(9)),
 		ValidArgsFunction: ValidateArguments(
 			AppendHelp("You must choose a name for the ethdev interface you are adding"),
-			AppendHelp("You must specify the device name for the ethdev interface you are adding (i.e like 0000:04:00.1)"),
+			completeUnusedDeviceList,
 			completePktmbufArg,
 			AppendHelp("You must specify the number of transmit queues for the ethdev interface you are adding"),
 			AppendHelp("You must specify the transmit queuesize for the ethdev interface you are adding"),
@@ -98,7 +98,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			var params ethdev.Params
 
 			// get device name
-			params.DevName = args[1]
+			params.PortName = args[1]
 
 			// get pktmbuf
 			params.Rx.Mempool = dpdki.PktmbufStore.Get(args[2])

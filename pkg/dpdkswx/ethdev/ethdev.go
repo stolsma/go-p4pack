@@ -43,8 +43,8 @@ const RetaConfSize = (EthRssRetaSize512 / EthRetaGroupSize)
 type ParamsRss []uint16
 
 type Params struct {
-	DevName string
-	Rx      struct {
+	PortName string
+	Rx       struct {
 		Mtu       uint16
 		NQueues   uint16
 		QueueSize uint32
@@ -62,7 +62,9 @@ type Params struct {
 // Ethdev represents a Ethdev record
 type Ethdev struct {
 	*device.Device
-	port    lled.Port
+	port     lled.Port
+	portInfo *DevInfo
+	// from create
 	devName string
 	nRxQ    uint16
 	nTxQ    uint16
@@ -77,7 +79,6 @@ func (ethdev *Ethdev) Init(name string) {
 
 // Create and/or configure DPDK Ethdev device. Returns error when something went wrong.
 func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
-	var portInfo DevInfo
 	var status C.int
 	var res error
 
@@ -89,14 +90,14 @@ func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	}
 
 	// get port id and save to this struct!
-	portID, res := lled.GetPortByName(params.DevName)
+	portID, res := lled.GetPortByName(params.PortName)
 	if res != nil {
 		return res
 	}
 	ethdev.port = portID
 
 	// get ethDev device information
-	res = ethdev.InfoGet(&portInfo)
+	portInfo, res := ethdev.InfoGet()
 	if res != nil {
 		return res
 	}
@@ -350,6 +351,8 @@ func (ethdev *Ethdev) SetLinkDown() error {
 		}
 		log.Debugf("PMD %v does not support LinkDown operation trying kernel", ethdev.Name())
 		// TODO implement try netlink portdown!!
+		ethdev.portInfo.InterfaceName()
+
 	}
 
 	return nil
@@ -374,7 +377,6 @@ func (ethdev *Ethdev) GetPortStatsString() (string, error) {
 }
 
 func (ethdev *Ethdev) GetPortInfoString() (string, error) {
-	var portInfo DevInfo
 	info := ""
 
 	linkParams, err := ethdev.port.EthLinkGet()
@@ -382,37 +384,31 @@ func (ethdev *Ethdev) GetPortInfoString() (string, error) {
 		return "", err
 	}
 	if linkParams.Status() {
-		info += fmt.Sprintf("  Link Status            : %s \n", "Up")
+		info += fmt.Sprintf("  Link Status               : %s \n", "Up")
 	} else {
-		info += fmt.Sprintf("  Link Status            : %s \n", "Down")
+		info += fmt.Sprintf("  Link Status               : %s \n", "Down")
 	}
 	if linkParams.AutoNeg() {
-		info += fmt.Sprintf("  Autonegotioation       : %s \n", "On")
+		info += fmt.Sprintf("  Autonegotioation          : %s \n", "Auto")
 	} else {
-		info += fmt.Sprintf("  Autonegotioation       : %s \n", "Off")
+		info += fmt.Sprintf("  Autonegotioation          : %s \n", "Fixed")
 	}
 	if linkParams.Duplex() {
-		info += fmt.Sprintf("  Duplex                 : %s \n", "Full")
+		info += fmt.Sprintf("  Duplex                    : %s \n", "Full")
 	} else {
-		info += fmt.Sprintf("  Duplex                 : %s \n", "Half")
+		info += fmt.Sprintf("  Duplex                    : %s \n", "Half")
 	}
-	info += fmt.Sprintf("  Linkspeed (mbps)       : %d \n", linkParams.Speed())
-	info += "\n"
+	info += fmt.Sprintf("  Linkspeed                 : %s \n", RteEthLinkSpeedToString(linkParams.Speed()))
 
-	info += fmt.Sprintf("  Promiscuous mode       : %s \n", PromiscuousModeStr[ethdev.PromiscuousGet()])
-	info += "\n"
+	info += fmt.Sprintf("  Promiscuous mode          : %s \n", PromiscuousModeStr[ethdev.PromiscuousGet()])
 
 	var addr = &lled.MACAddr{}
 	err = ethdev.port.MACAddrGet(addr)
 	if err == nil {
-		info += fmt.Sprintf("  MAC Address            : %s \n", addr.String())
+		info += fmt.Sprintf("  MAC Address               : %s \n\n", addr.String())
 	}
 
-	err = ethdev.InfoGet(&portInfo)
-	if err != nil {
-		return "", err
-	}
-	info += portInfo.String()
+	info += ethdev.portInfo.String()
 
 	return info, nil
 }
@@ -459,20 +455,44 @@ const (
 	EthRssRetaSize512 = C.RTE_ETH_RSS_RETA_SIZE_512
 )
 
-// DevInfo is a structure used to retrieve the contextual information
-// of an Ethernet device, such as the controlling driver of the
-// device, etc...
+// DevInfo is a structure used to retrieve the contextual information of an Ethernet device, such as the controlling
+// driver of the device, etc...
 type DevInfo C.struct_rte_eth_dev_info
 
-// DriverName returns driver_name as a Go string.
+// DriverName returns driver name as a Go string.
 func (info *DevInfo) DriverName() string {
 	return C.GoString((*C.struct_rte_eth_dev_info)(info).driver_name)
 }
 
-// InterfaceName is the name of the interface in the system.
+// DriverAlias returns driver alias as a Go string.
+func (info *DevInfo) DriverAlias() string {
+	return C.GoString(info.device.driver.alias)
+}
+
+// DeviceName returns device name as a Go string.
+func (info *DevInfo) DeviceName() string {
+	return C.GoString(info.device.name)
+}
+
+// BusName returns device bus name as a Go string.
+func (info *DevInfo) BusName() string {
+	return C.GoString(info.device.bus.name)
+}
+
+// Ifindex of the interface in this system if applicable
+func (info *DevInfo) IfIndex() uint {
+	return uint(info.if_index)
+}
+
+// InterfaceName is the name of the interface in the system if applicable.
 func (info *DevInfo) InterfaceName() string {
 	var buf [C.IF_NAMESIZE]C.char
 	return C.GoString(C.if_indextoname(info.if_index, &buf[0]))
+}
+
+// Curent connected numa node of the device
+func (info *DevInfo) NumaNode() int {
+	return int(info.device.numa_node)
 }
 
 type RteEthDevFlags uint32
@@ -481,7 +501,7 @@ type RteEthDevFlags uint32
 const (
 	// PMD supports thread-safe flow operations
 	RteEthDevFlowOpsThreadSafe RteEthDevFlags = C.RTE_ETH_DEV_FLOW_OPS_THREAD_SAFE
-	// Device supports link state interrupt
+	// Device supports link state interrupt coalescing
 	RteEthDevIntrLsc = C.RTE_ETH_DEV_INTR_LSC
 	// Device is a bonded slave
 	RteEthDevBondedSlave = C.RTE_ETH_DEV_BONDED_SLAVE
@@ -495,9 +515,46 @@ const (
 	RteEthDevAutofillQueueXstats = C.RTE_ETH_DEV_AUTOFILL_QUEUE_XSTATS
 )
 
+var RteEthDevFlagsNames = map[RteEthDevFlags]string{
+	RteEthDevFlowOpsThreadSafe:   "FLOW_OPS_THREAD_SAFE",
+	RteEthDevIntrLsc:             "INTR_LSC",
+	RteEthDevBondedSlave:         "BONDED_SLAVE",
+	RteEthDevIntrRmv:             "INTR_RMV",
+	RteEthDevRepresentor:         "REPRESENTOR",
+	RteEthDevNoliveMACAddr:       "NOLIVE_MAC_ADDR",
+	RteEthDevAutofillQueueXstats: "AUTOFILL_QUEUE_XSTATS",
+}
+
 // Device flags.
 func (info *DevInfo) DeviceFlags() RteEthDevFlags {
 	return RteEthDevFlags(*info.dev_flags)
+}
+
+func addFlagString(result string, flag string) string {
+	if result == "" {
+		return flag
+	}
+	return result + ", " + flag
+}
+
+// Return device flags string.
+func (info *DevInfo) DeviceFlagsString() string {
+	var result string
+	var singleFlag RteEthDevFlags = 1 << 0
+
+	flags := info.DeviceFlags()
+	if flags == 0 {
+		return ""
+	}
+
+	for bit := 0; bit < 32; bit++ {
+		if flags&singleFlag != 0 {
+			result = addFlagString(result, RteEthDevFlagsNames[singleFlag])
+		}
+		singleFlag <<= 1
+	}
+
+	return result
 }
 
 // RetaSize returns Device redirection table size, the total number of entries.
@@ -515,6 +572,16 @@ func (info *DevInfo) MaxTxQueues() uint16 {
 	return uint16(info.max_tx_queues)
 }
 
+// MinRxBufsize returns Device minimum receive buffer size.
+func (info *DevInfo) MinRxBufsize() uint32 {
+	return uint32(info.min_rx_bufsize)
+}
+
+// MaxRxPktlen returns the Device maximum receive packet length
+func (info *DevInfo) MaxRxPktlen() uint32 {
+	return uint32(info.max_rx_pktlen)
+}
+
 // MaxRxQueues returns bit mask of RSS offloads, the bit offset also means flow type.
 func (info *DevInfo) FlowTypeRssOffloads() uint64 {
 	return uint64(info.flow_type_rss_offloads)
@@ -530,51 +597,74 @@ func (info *DevInfo) MaxMTU() uint16 {
 	return uint16(info.max_mtu)
 }
 
+// DecCapa returns Device capabilities.
+func (info *DevInfo) DevCapa() uint64 {
+	return uint64(info.dev_capa)
+}
+
+func (info *DevInfo) DevCapaString() string {
+	var result string
+	var single_capa uint64 = 1 << 0
+
+	capabilities := info.DevCapa()
+	if capabilities == 0 {
+		return ""
+	}
+
+	for bit := 0; bit < 64; bit++ {
+		if capabilities&single_capa != 0 {
+			result = addFlagString(result, RteEthDevCapabilityName(single_capa))
+		}
+		single_capa <<= 1
+	}
+
+	return result
+}
+
 func (info *DevInfo) String() string {
 	result := ""
-	result += fmt.Sprintf("  device name            : %s \n", C.GoString(info.device.name))
-	result += fmt.Sprintf("  driver name            : %s \n", C.GoString(info.device.driver.name))
-	result += fmt.Sprintf("  device alias           : %s \n", C.GoString(info.device.driver.alias))
-	result += fmt.Sprintf("  bus                    : %s \n", C.GoString(info.device.bus.name))
-	result += fmt.Sprintf("  numa node              : %d \n", info.device.numa_node)
-	result += fmt.Sprintf("  ifIndex                : %d \n", info.if_index)
-	result += fmt.Sprintf("  min MTU                : %d \n", info.min_mtu)
-	result += fmt.Sprintf("  max MTU                : %d \n", info.max_mtu)
-	result += fmt.Sprintf("  dev_flags              : %d \n", info.dev_flags)
-	result += fmt.Sprintf("  min_rx_bufsize         : %d \n", info.min_rx_bufsize)
-	result += fmt.Sprintf("  max_rx_pktlen          : %d \n", info.max_rx_pktlen)
-	result += fmt.Sprintf("  max_lro_pkt_size       : %d \n", info.max_lro_pkt_size)
-	result += fmt.Sprintf("  max_rx_queue           : %d \n", info.max_rx_queues)
-	result += fmt.Sprintf("  max_tx_queue           : %d \n", info.max_tx_queues)
-	result += fmt.Sprintf("  max_mac_addrs          : %d \n", info.max_mac_addrs)
-	result += fmt.Sprintf("  max_hash_mac_addrs     : %d \n", info.max_hash_mac_addrs)
-	result += fmt.Sprintf("  max_vf                 : %d \n", info.max_vfs)
-	result += fmt.Sprintf("  max_vmdq_pools         : %d \n", info.max_vmdq_pools)
+	result += fmt.Sprintf("  Device name               : %s \n", info.DeviceName())
+	result += fmt.Sprintf("  Driver name               : %s \n", info.DriverName())
+	result += fmt.Sprintf("  Device alias              : %s \n", info.DriverAlias())
+	result += fmt.Sprintf("  Bus                       : %s \n", info.BusName())
+	result += fmt.Sprintf("  Numa node                 : %d \n", info.NumaNode())
+	result += fmt.Sprintf("  Interface Index           : %d \n", info.IfIndex())
+	result += fmt.Sprintf("  Interface Name            : %s \n", info.InterfaceName())
+	result += fmt.Sprintf("  Minimum MTU size          : %d \n", info.MinMTU())
+	result += fmt.Sprintf("  Maximum MTU size          : %d \n", info.MaxMTU())
+	result += fmt.Sprintf("  Device flags              : %s \n", info.DeviceFlagsString())
+	result += fmt.Sprintf("  Minimum rx buffer size    : %d \n", info.MinRxBufsize())
+	result += fmt.Sprintf("  Maximum rx packet length  : %d \n", info.MaxRxPktlen())
+	result += fmt.Sprintf("  max_lro_pkt_size          : %d \n", info.max_lro_pkt_size)
+	result += fmt.Sprintf("  Maximum rx queues         : %d \n", info.MaxRxQueues())
+	result += fmt.Sprintf("  Maximum tx queues         : %d \n", info.MaxTxQueues())
+	result += fmt.Sprintf("  Maximum # MAC addresses   : %d \n", info.max_mac_addrs)
+	result += fmt.Sprintf("  max_hash_mac_addrs        : %d \n", info.max_hash_mac_addrs)
+	result += fmt.Sprintf("  Maximum virtual functions : %d \n", info.max_vfs)
+	result += fmt.Sprintf("  max_vmdq_pools            : %d \n", info.max_vmdq_pools)
 	// rx_seg_capa		_Ctype_struct_rte_eth_rxseg_capa
-	result += fmt.Sprintf("  rx_offload_capa        : %d \n", info.rx_offload_capa)
-	result += fmt.Sprintf("  tx_offload_capa        : %d \n", info.tx_offload_capa)
-	result += fmt.Sprintf("  rx_queue_offload_capa  : %d \n", info.rx_queue_offload_capa)
-	result += fmt.Sprintf("  tx_queue_offload_capa  : %d \n", info.tx_queue_offload_capa)
-	result += fmt.Sprintf("  reta_size              : %d \n", info.reta_size)
-	result += fmt.Sprintf("  ihash_key_size         : %d \n", info.hash_key_size)
-	result += fmt.Sprintf("  flow_type_rss_offloads : %d \n", info.flow_type_rss_offloads)
-	result += fmt.Sprintf("  vmdq_queue_base        : %d \n", info.vmdq_queue_base)
-	result += fmt.Sprintf("  vmdq_queue_num         : %d \n", info.vmdq_queue_num)
-	result += fmt.Sprintf("  vmdq_pool_base         : %d \n", info.vmdq_pool_base)
+	result += fmt.Sprintf("  rx_offload_capa           : %d \n", info.rx_offload_capa)
+	result += fmt.Sprintf("  tx_offload_capa           : %d \n", info.tx_offload_capa)
+	result += fmt.Sprintf("  rx_queue_offload_capa     : %d \n", info.rx_queue_offload_capa)
+	result += fmt.Sprintf("  tx_queue_offload_capa     : %d \n", info.tx_queue_offload_capa)
+	result += fmt.Sprintf("  reta_size                 : %d \n", info.reta_size)
+	result += fmt.Sprintf("  ihash_key_size            : %d \n", info.hash_key_size)
+	result += fmt.Sprintf("  flow_type_rss_offloads    : %d \n", info.flow_type_rss_offloads)
+	result += fmt.Sprintf("  vmdq_queue_base           : %d \n", info.vmdq_queue_base)
+	result += fmt.Sprintf("  vmdq_queue_num            : %d \n", info.vmdq_queue_num)
+	result += fmt.Sprintf("  vmdq_pool_base            : %d \n", info.vmdq_pool_base)
 	// rx_desc_lim		_Ctype_struct_rte_eth_desc_lim
 	// tx_desc_lim		_Ctype_struct_rte_eth_desc_lim
-	result += fmt.Sprintf("  speed_capa             : %d \n", info.speed_capa)
-	result += fmt.Sprintf("  nb_rx_queues           : %d \n", info.nb_rx_queues)
-	result += fmt.Sprintf("  nb_tx_queues           : %d \n", info.nb_tx_queues)
-	result += fmt.Sprintf("  dev_cap                : %d \n", info.dev_capa)
+	result += fmt.Sprintf("  speed_capa                : %d \n", info.speed_capa)
+	result += fmt.Sprintf("  Current # rx queues       : %d \n", info.nb_rx_queues)
+	result += fmt.Sprintf("  Current # tx queues       : %d \n", info.nb_tx_queues)
+	result += fmt.Sprintf("  Device capabilities       : %s \n", info.DevCapaString())
 
 	return result
 }
 
 /*
 	TODO Following fields need to be added as retrieval function:
-	min_rx_bufsize         _Ctype_uint32_t
-	max_rx_pktlen          _Ctype_uint32_t
 	max_lro_pkt_size       _Ctype_uint32_t
 	max_mac_addrs          _Ctype_uint32_t
 	max_hash_mac_addrs     _Ctype_uint32_t
@@ -607,8 +697,39 @@ func (info *DevInfo) String() string {
 // Extra Ethdev methods to be upstreamed
 //
 
-func (ethdev *Ethdev) InfoGet(info *DevInfo) error {
-	return common.Err(C.rte_eth_dev_info_get(C.ushort(ethdev.port), (*C.struct_rte_eth_dev_info)(info)))
+// Retrieve ethdev info. Also saves retrieved device info in current ethdev structure at portInfo for later (cached) use.
+func (ethdev *Ethdev) InfoGet() (*DevInfo, error) {
+	var info = &DevInfo{}
+
+	err := common.Err(C.rte_eth_dev_info_get(C.ushort(ethdev.port), (*C.struct_rte_eth_dev_info)(info)))
+	if err != nil {
+		return nil, err
+	}
+
+	// save for later (cached) use
+	ethdev.portInfo = info
+	return info, err
+}
+
+const EthDevNoOwner = C.RTE_ETH_DEV_NO_OWNER
+
+type DevOwner C.struct_rte_eth_dev_owner
+
+func (owner *DevOwner) GetID() uint64 {
+	return uint64(owner.id)
+}
+
+func (owner *DevOwner) GetName() string {
+	return C.GoString(&owner.name[0])
+}
+
+// Retrieve ethdev owner data
+func (ethdev *Ethdev) OwnerGet() (*DevOwner, error) {
+	var owner = &DevOwner{}
+
+	err := common.Err(C.rte_eth_dev_owner_get(C.ushort(ethdev.port), (*C.struct_rte_eth_dev_owner)(owner)))
+
+	return owner, err
 }
 
 var PromiscuousModeStr = [2]string{0: "off", 1: "on"}

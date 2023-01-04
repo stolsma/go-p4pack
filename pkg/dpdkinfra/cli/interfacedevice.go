@@ -9,22 +9,22 @@ import (
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
-func interfaceHotplugCmd(parent *cobra.Command) *cobra.Command {
-	hotplugCmd := &cobra.Command{
-		Use:     "hotplug",
+func interfaceDeviceCmd(parent *cobra.Command) *cobra.Command {
+	deviceCmd := &cobra.Command{
+		Use:     "device",
 		Short:   "Base command for all device actions",
-		Aliases: []string{"hp"},
+		Aliases: []string{"dev"},
 	}
 
-	interfaceHotplugListCmd(hotplugCmd)
-	interfaceHotplugAttachCmd(hotplugCmd)
-	interfaceHotplugDetachCmd(hotplugCmd)
-	parent.AddCommand(hotplugCmd)
+	interfaceDeviceListCmd(deviceCmd)
+	interfaceDeviceAttachCmd(deviceCmd)
+	interfaceDeviceDetachCmd(deviceCmd)
+	parent.AddCommand(deviceCmd)
 
-	return hotplugCmd
+	return deviceCmd
 }
 
-func interfaceHotplugListCmd(parent *cobra.Command) *cobra.Command {
+func interfaceDeviceListCmd(parent *cobra.Command) *cobra.Command {
 	var used, notused bool
 	listCmd := &cobra.Command{
 		Use:     "list",
@@ -62,7 +62,7 @@ func interfaceHotplugListCmd(parent *cobra.Command) *cobra.Command {
 	return listCmd
 }
 
-func interfaceHotplugAttachCmd(parent *cobra.Command) *cobra.Command {
+func interfaceDeviceAttachCmd(parent *cobra.Command) *cobra.Command {
 	attachCmd := &cobra.Command{
 		Use:     "attach [device argument string]",
 		Short:   "Attach a DPDK device on the system via hotplug procedure",
@@ -90,7 +90,7 @@ func interfaceHotplugAttachCmd(parent *cobra.Command) *cobra.Command {
 	return attachCmd
 }
 
-func interfaceHotplugDetachCmd(parent *cobra.Command) *cobra.Command {
+func interfaceDeviceDetachCmd(parent *cobra.Command) *cobra.Command {
 	detachCmd := &cobra.Command{
 		Use:     "detach [device name]",
 		Short:   "Detach a DPDK device from the system via hotplug procedure",

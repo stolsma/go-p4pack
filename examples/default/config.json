@@ -39,7 +39,7 @@
     },{
       "name": "sw3",
       "ethdev": {
-        "devname": "virtio_user0",
+        "portname": "virtio_user0",
         "rx": {
           "mtu": 1500,
           "nqueues": 1,
@@ -55,7 +55,7 @@
     },{
       "name": "sw4",
       "ethdev": {
-        "devname": "virtio_user1",
+        "portname": "virtio_user1",
         "rx": {
           "mtu": 1500,
           "nqueues": 1,

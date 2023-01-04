@@ -19,7 +19,7 @@ func interfaceCmd(parent *cobra.Command) *cobra.Command {
 		Aliases: []string{"int"},
 	}
 
-	interfaceHotplugCmd(interfaceCmd)
+	interfaceDeviceCmd(interfaceCmd)
 	interfaceCreateCmd(interfaceCmd)
 	interfaceShowCmd(interfaceCmd)
 	interfaceStatsCmd(interfaceCmd)
@@ -77,6 +77,11 @@ func interfaceLinkUpDownCmd(parent *cobra.Command) *cobra.Command {
 		Short:   "Set the interface up or down",
 		Aliases: []string{"set"},
 		Args:    cobra.MaximumNArgs(2),
+		ValidArgsFunction: ValidateArguments(
+			completePortList,
+			AppendHelp("Set the interface state to up or down (up/down)"),
+			AppendLastHelp(2, "This command does not take any more arguments"),
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
 			var err error
@@ -157,4 +162,34 @@ func interfacePmdShowCmd(parent *cobra.Command) *cobra.Command {
 	parent.AddCommand(showCmd)
 
 	return showCmd
+}
+
+func completePortList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
+
+	// get device list
+	portList := portList()
+
+	// filter list with string to complete
+	completions := filterCompletions(portList, toComplete, &directive, "No Ports available for completion!")
+
+	return completions, directive
+}
+
+func portList() []string {
+	dpdki := dpdkinfra.Get()
+	list := []string{}
+
+	ports, err := dpdki.GetUsedPorts()
+	if err != nil {
+		return list
+	}
+
+	// copy port names and sort
+	for _, port := range ports {
+		list = append(list, port.Name())
+	}
+	sort.Strings(list)
+
+	return list
 }

@@ -28,7 +28,7 @@
     },{
       "name": "sw3",
       "vdev": {
-        "devname": "virtio_user0",
+        "portname": "virtio_user0",
         "rx": {
           "mtu": 1500,
           "nqueues": 1,
@@ -44,7 +44,7 @@
     },{
       "name": "sw4",
       "ethdev": {
-        "devname": "0000:04:00.1",
+        "portname": "0000:04:00.1",
         "rx": {
           "nqueues": 1,
           "queuesize": 128,

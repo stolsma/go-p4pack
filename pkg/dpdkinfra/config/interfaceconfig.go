@@ -59,9 +59,8 @@ type SinkParams struct {
 }
 
 type PMDParams struct {
-	DevName string `json:"devname"`
-	DevArgs string `json:"devargs"`
-	Rx      *struct {
+	PortName string `json:"portname"`
+	Rx       *struct {
 		Mtu         uint16           `json:"mtu"`
 		NQueues     uint16           `json:"nqueues"`
 		QueueSize   uint32           `json:"queuesize"`
@@ -180,7 +179,7 @@ func (c InterfacesConfig) Apply() error {
 			}
 
 			// copy parameters
-			p.DevName = vh.DevName
+			p.PortName = vh.PortName
 			p.Rx.Mtu = vh.Rx.Mtu
 			p.Rx.NQueues = vh.Rx.NQueues
 			p.Rx.QueueSize = vh.Rx.QueueSize
@@ -200,12 +199,12 @@ func (c InterfacesConfig) Apply() error {
 			netlink.InterfaceUp(name)
 			netlink.RemoveAllAddr(name)
 
-			log.Infof("PMD %s (device name: %s) created!", name, vh.DevName)
+			log.Infof("Ethdev %s (device port name: %s) created!", name, vh.PortName)
 			continue
 		}
 
-		log.Errorf("Unknown interface type of wrong configuration for interface %s", ifConfig.GetName())
-		return errors.New("error in interafce configuration")
+		log.Errorf("Unknown interface type or wrong configuration for interface %s", ifConfig.GetName())
+		return errors.New("error in interface configuration")
 	}
 
 	return nil
