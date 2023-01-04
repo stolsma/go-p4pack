@@ -37,7 +37,7 @@ func interfaceDeviceListCmd(parent *cobra.Command) *cobra.Command {
 			var devices []string
 			var hs string
 
-			if used {
+			if used { //nolint:gocritic
 				devices = deviceList(UsedDevices)
 				hs = "Used"
 			} else if notused {

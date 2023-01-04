@@ -352,7 +352,6 @@ func (ethdev *Ethdev) SetLinkDown() error {
 		log.Debugf("PMD %v does not support LinkDown operation trying kernel", ethdev.Name())
 		// TODO implement try netlink portdown!!
 		ethdev.portInfo.InterfaceName()
-
 	}
 
 	return nil
@@ -604,7 +603,7 @@ func (info *DevInfo) DevCapa() uint64 {
 
 func (info *DevInfo) DevCapaString() string {
 	var result string
-	var single_capa uint64 = 1 << 0
+	var singleCapa uint64 = 1 << 0
 
 	capabilities := info.DevCapa()
 	if capabilities == 0 {
@@ -612,10 +611,10 @@ func (info *DevInfo) DevCapaString() string {
 	}
 
 	for bit := 0; bit < 64; bit++ {
-		if capabilities&single_capa != 0 {
-			result = addFlagString(result, RteEthDevCapabilityName(single_capa))
+		if capabilities&singleCapa != 0 {
+			result = addFlagString(result, RteEthDevCapabilityName(singleCapa))
 		}
-		single_capa <<= 1
+		singleCapa <<= 1
 	}
 
 	return result
