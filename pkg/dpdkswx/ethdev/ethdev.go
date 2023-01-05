@@ -86,7 +86,7 @@ func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	// Check input params
 	if (params == nil) || (params.Rx.NQueues == 0) ||
 		(params.Rx.QueueSize == 0) || (params.Tx.NQueues == 0) || (params.Tx.QueueSize == 0) {
-		return nil
+		return errors.New("parameter error")
 	}
 
 	// get port id and save to this struct!
@@ -357,9 +357,9 @@ func (ethdev *Ethdev) SetLinkDown() error {
 	return nil
 }
 
-func (ethdev *Ethdev) GetPortStatsString() (string, error) {
+func (ethdev *Ethdev) GetPortStats() (map[string]string, error) {
 	var stats lled.Stats
-	var info string
+	info := make(map[string]string)
 	err := ethdev.port.StatsGet(&stats)
 	if err != nil {
 		return info, err
@@ -367,47 +367,50 @@ func (ethdev *Ethdev) GetPortStatsString() (string, error) {
 
 	goStats := stats.Cast()
 
-	info += fmt.Sprintf("\tRX packets: %-20d bytes : %-20d\n", goStats.Ipackets, goStats.Ibytes)
-	info += fmt.Sprintf("\tRX errors : %-20d missed: %-20d RX no mbuf: %-20d\n", goStats.Ierrors, goStats.Imissed, goStats.RxNoMbuf)
-	info += fmt.Sprintf("\tTX packets: %-20d bytes : %-20d\n", goStats.Opackets, goStats.Obytes)
-	info += fmt.Sprintf("\tTX errors : %-20d\n", goStats.Oerrors)
+	info["ipackets"] = fmt.Sprintf("%-20d", goStats.Ipackets)
+	info["ibytes"] = fmt.Sprintf("%-20d", goStats.Ibytes)
+	info["ierrors"] = fmt.Sprintf("%-20d", goStats.Ierrors)
+	info["imissed"] = fmt.Sprintf("%-20d", goStats.Imissed)
+	info["rxnombuf"] = fmt.Sprintf("%-20d", goStats.RxNoMbuf)
+	info["opackets"] = fmt.Sprintf("%-20d", goStats.Opackets)
+	info["obytes"] = fmt.Sprintf("%-20d", goStats.Obytes)
+	info["oerrors"] = fmt.Sprintf("%-20d", goStats.Oerrors)
 
 	return info, nil
 }
 
-func (ethdev *Ethdev) GetPortInfoString() (string, error) {
-	info := ""
+func (ethdev *Ethdev) GetPortInfo() (map[string]string, error) {
+	info := make(map[string]string)
 
 	linkParams, err := ethdev.port.EthLinkGet()
 	if err != nil {
-		return "", err
+		return info, err
 	}
 	if linkParams.Status() {
-		info += fmt.Sprintf("  Link Status               : %s \n", "Up")
+		info["status"] = "Up"
 	} else {
-		info += fmt.Sprintf("  Link Status               : %s \n", "Down")
+		info["status"] = "Down"
 	}
 	if linkParams.AutoNeg() {
-		info += fmt.Sprintf("  Autonegotioation          : %s \n", "Auto")
+		info["autoneg"] = "Auto"
 	} else {
-		info += fmt.Sprintf("  Autonegotioation          : %s \n", "Fixed")
+		info["autoneg"] = "Fixed"
 	}
 	if linkParams.Duplex() {
-		info += fmt.Sprintf("  Duplex                    : %s \n", "Full")
+		info["duplex"] = "Full"
 	} else {
-		info += fmt.Sprintf("  Duplex                    : %s \n", "Half")
+		info["duplex"] = "Half"
 	}
-	info += fmt.Sprintf("  Linkspeed                 : %s \n", RteEthLinkSpeedToString(linkParams.Speed()))
-
-	info += fmt.Sprintf("  Promiscuous mode          : %s \n", PromiscuousModeStr[ethdev.PromiscuousGet()])
+	info["speed"] = RteEthLinkSpeedToString(linkParams.Speed())
+	info["promiscuous"] = PromiscuousModeStr[ethdev.PromiscuousGet()]
 
 	var addr = &lled.MACAddr{}
 	err = ethdev.port.MACAddrGet(addr)
 	if err == nil {
-		info += fmt.Sprintf("  MAC Address               : %s \n\n", addr.String())
+		info["macaddr"] = addr.String()
 	}
 
-	info += ethdev.portInfo.String()
+	info["portinfo"] = ethdev.portInfo.String()
 
 	return info, nil
 }

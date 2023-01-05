@@ -4,14 +4,12 @@
 package cli
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 )
 
@@ -83,7 +81,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 		Args:  cobra.MatchAll(cobra.MinimumNArgs(7), cobra.MaximumNArgs(9)),
 		ValidArgsFunction: ValidateArguments(
 			AppendHelp("You must choose a name for the ethdev interface you are adding"),
-			completeUnusedDeviceList,
+			completeUnusedPortList,
 			completePktmbufArg,
 			AppendHelp("You must specify the number of transmit queues for the ethdev interface you are adding"),
 			AppendHelp("You must specify the transmit queuesize for the ethdev interface you are adding"),
@@ -110,7 +108,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// get # TX Queues
 			ntxq, err := strconv.ParseInt(args[3], 0, 16)
 			if err != nil {
-				cmd.PrintErrf("# TX Queues (%s) is not a correct integer: %d\n", args[3], err)
+				cmd.PrintErrf("# TX Queues (%s) is not a correct integer: %v\n", args[3], err)
 				return
 			}
 			params.Tx.NQueues = uint16(ntxq)
@@ -118,7 +116,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// get TX Queuesize
 			txqsize, err := strconv.ParseInt(args[4], 0, 32)
 			if err != nil {
-				cmd.PrintErrf("TX Queuesize (%s) is not a correct integer: %d\n", args[4], err)
+				cmd.PrintErrf("TX Queuesize (%s) is not a correct integer: %v\n", args[4], err)
 				return
 			}
 			params.Tx.QueueSize = uint32(txqsize)
@@ -126,7 +124,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// get # RX Queues
 			nrxq, err := strconv.ParseInt(args[5], 0, 16)
 			if err != nil {
-				cmd.PrintErrf("# RX Queues (%s) is not a correct integer: %d\n", args[5], err)
+				cmd.PrintErrf("# RX Queues (%s) is not a correct integer: %v\n", args[5], err)
 				return
 			}
 			params.Rx.NQueues = uint16(nrxq)
@@ -134,17 +132,17 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// get RX Queuesize
 			rxqsize, err := strconv.ParseInt(args[6], 0, 32)
 			if err != nil {
-				cmd.PrintErrf("RX Queuesize (%s) is not a correct integer: %d\n", args[6], err)
+				cmd.PrintErrf("RX Queuesize (%s) is not a correct integer: %v\n", args[6], err)
 				return
 			}
-			params.Tx.QueueSize = uint32(rxqsize)
+			params.Rx.QueueSize = uint32(rxqsize)
 
 			// get MTU if available
 			var mtu int64 = 1500
 			if len(args) > 7 {
 				mtu, err = strconv.ParseInt(args[7], 0, 16)
 				if err != nil {
-					cmd.PrintErrf("MTU (%s) is not a correct integer: %d\n", args[7], err)
+					cmd.PrintErrf("MTU (%s) is not a correct integer: %v\n", args[7], err)
 					return
 				}
 				if mtu == 0 {
@@ -175,7 +173,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 			// create
 			_, err = dpdki.EthdevCreate(args[0], &params)
 			if err != nil {
-				cmd.PrintErrf("Ethdev %s create err: %d\n", args[0], err)
+				cmd.PrintErrf("Ethdev %s create err: %v\n", args[0], err)
 				return
 			}
 
@@ -186,32 +184,4 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 	parent.AddCommand(ethdevCmd)
 
 	return ethdevCmd
-}
-
-// complete a pktmbuf argument
-func completePktmbufArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
-
-	// get pktmbuf list
-	listPktmbuf := pktmbufList()
-
-	// filter list with string to complete
-	completions := filterCompletions(listPktmbuf, toComplete, &directive, "No Pktmbufs available for completion!")
-
-	return completions, directive
-}
-
-// retrieve all pktmbuf names and return in sorted list.
-func pktmbufList() []string {
-	dpdki := dpdkinfra.Get()
-
-	list := []string{}
-	dpdki.PktmbufStore.Iterate(func(key string, value *pktmbuf.Pktmbuf) error {
-		list = append(list, key)
-		return nil
-	})
-
-	sort.Strings(list)
-
-	return list
 }

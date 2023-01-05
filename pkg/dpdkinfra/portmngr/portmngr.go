@@ -271,12 +271,12 @@ func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Et
 }
 
 // Get all raw DPDK ethdev ports
-func (pm *PortMngr) GetAttachedPorts() ([]*ethdev.Ethdev, error) {
+func (pm *PortMngr) GetAttachedEthdevPorts() ([]*ethdev.Ethdev, error) {
 	return ethdev.GetAttachedPorts()
 }
 
 // Get all used DPDK ethdev ports
-func (pm *PortMngr) GetUsedPorts() ([]*ethdev.Ethdev, error) {
+func (pm *PortMngr) GetUsedEthdevPorts() ([]*ethdev.Ethdev, error) {
 	var ports []*ethdev.Ethdev
 
 	pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
@@ -288,7 +288,7 @@ func (pm *PortMngr) GetUsedPorts() ([]*ethdev.Ethdev, error) {
 }
 
 // Get all unused raw DPDK ethdev ports
-func (pm *PortMngr) GetUnusedPorts() ([]*ethdev.Ethdev, error) {
+func (pm *PortMngr) GetUnusedEthdevPorts() ([]*ethdev.Ethdev, error) {
 	var ports []*ethdev.Ethdev
 
 	rawPorts, err := ethdev.GetAttachedPorts()
@@ -334,28 +334,39 @@ func (pm *PortMngr) LinkDown(name string) error {
 	return port.SetLinkDown()
 }
 
-// returns the port statistics string of the requested port or all ports if no name given
-func (pm *PortMngr) GetPortStatsString(name string) (map[string]string, error) {
-	result := make(map[string]string)
+// returns the port info array of the requested port or all ports if no name given
+func (pm *PortMngr) GetPortInfo(name string) (map[string]map[string]map[string]string, error) {
+	result := make(map[string]map[string]map[string]string)
 	var err error
 
-	makeString := func(key string, port PortType) error {
-		result[key] += fmt.Sprintf("\n  %v <%v", port.Name(), port.Type())
+	makeInfo := func(key string, port PortType) error {
+		result[key] = make(map[string]map[string]string)
+		result[key]["header"] = make(map[string]string)
+		result[key]["header"]["name"] = port.Name()
+		result[key]["header"]["type"] = port.Type()
 		if port.PipelineInPort() != device.NotBound {
-			result[key] += fmt.Sprintf(", %v:%v", port.PipelineIn(), port.PipelineInPort())
+			result[key]["header"]["pipein"] = port.PipelineIn()
+			result[key]["header"]["pipeinport"] = fmt.Sprintf("%v", port.PipelineInPort())
 		}
 		if port.PipelineOutPort() != device.NotBound {
-			result[key] += fmt.Sprintf(", %v:%v", port.PipelineOut(), port.PipelineOutPort())
+			result[key]["header"]["pipeout"] = port.PipelineOut()
+			result[key]["header"]["pipeoutport"] = fmt.Sprintf("%v", port.PipelineOutPort())
 		}
 		// TODO add linkstate!
-		result[key] += ">\n"
 
-		stats, err := port.GetPortStatsString()
+		info, err := port.GetPortInfo()
 		if err == device.ErrNotImplemented {
-			result[key] += fmt.Sprintf("\tPort statistics: %v\n", err)
+			result[key]["err"] = make(map[string]string)
+			result[key]["err"]["err"] = fmt.Sprintf("%v", err)
 			return nil
 		}
-		result[key] += stats
+
+		// merge
+		result[key]["info"] = make(map[string]string)
+		for k, v := range info {
+			result[key]["info"][k] = v
+		}
+
 		return err
 	}
 
@@ -364,10 +375,61 @@ func (pm *PortMngr) GetPortStatsString(name string) (map[string]string, error) {
 		if port == nil {
 			return result, fmt.Errorf("port with name %v not found", name)
 		}
-		err = makeString(name, port)
+		err = makeInfo(name, port)
 	} else {
 		err = pm.IteratePorts(func(key string, port PortType) error {
-			return makeString(key, port)
+			return makeInfo(key, port)
+		})
+	}
+
+	return result, err
+}
+
+// returns the port statistics string of the requested port or all ports if no name given
+func (pm *PortMngr) GetPortStats(name string) (map[string]map[string]map[string]string, error) {
+	result := make(map[string]map[string]map[string]string)
+	var err error
+
+	makeStats := func(key string, port PortType) error {
+		result[key] = make(map[string]map[string]string)
+		result[key]["header"] = make(map[string]string)
+		result[key]["header"]["name"] = port.Name()
+		result[key]["header"]["type"] = port.Type()
+		if port.PipelineInPort() != device.NotBound {
+			result[key]["header"]["pipein"] = port.PipelineIn()
+			result[key]["header"]["pipeinport"] = fmt.Sprintf("%v", port.PipelineInPort())
+		}
+		if port.PipelineOutPort() != device.NotBound {
+			result[key]["header"]["pipeout"] = port.PipelineOut()
+			result[key]["header"]["pipeoutport"] = fmt.Sprintf("%v", port.PipelineOutPort())
+		}
+		// TODO add linkstate!
+
+		stats, err := port.GetPortStats()
+		if err == device.ErrNotImplemented {
+			result[key]["err"] = make(map[string]string)
+			result[key]["err"]["err"] = fmt.Sprintf("%v", err)
+			return nil
+		}
+
+		// merge
+		result[key]["stats"] = make(map[string]string)
+		for k, v := range stats {
+			result[key]["stats"][k] = v
+		}
+
+		return err
+	}
+
+	if name != "" {
+		port := pm.GetPort(name)
+		if port == nil {
+			return result, fmt.Errorf("port with name %v not found", name)
+		}
+		err = makeStats(name, port)
+	} else {
+		err = pm.IteratePorts(func(key string, port PortType) error {
+			return makeStats(key, port)
 		})
 	}
 

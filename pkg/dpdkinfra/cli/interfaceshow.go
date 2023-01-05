@@ -4,32 +4,22 @@
 package cli
 
 import (
-	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 )
 
 func interfaceShowCmd(parent *cobra.Command) *cobra.Command {
 	showCmd := &cobra.Command{
-		Use:     "show",
-		Short:   "Base command for all interface show actions",
-		Aliases: []string{"cr"},
-	}
-
-	interfaceShowTapCmd(showCmd)
-	parent.AddCommand(showCmd)
-
-	return showCmd
-}
-
-func interfaceShowTapCmd(parent *cobra.Command) *cobra.Command {
-	tapCmd := &cobra.Command{
-		Use:     "tap [tapname]",
-		Short:   "Show information of all (or one given) TAP interface(s)",
+		Use:     "show [portname]",
+		Short:   "Show information of all (or one given) interface(s)",
 		Aliases: []string{"sh"},
 		Args:    cobra.MaximumNArgs(1),
+		ValidArgsFunction: ValidateArguments(
+			completePortList,
+			AppendLastHelp(1, "This command does not take any more arguments"),
+		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
 			t := ""
@@ -37,25 +27,48 @@ func interfaceShowTapCmd(parent *cobra.Command) *cobra.Command {
 				t = args[0]
 			}
 
-			list := ""
-			if err := dpdki.TapStore.Iterate(func(key string, tap *tap.Tap) error {
-				list += fmt.Sprintf("  %s \n", tap.Name())
-				return nil
-			}); err != nil {
-				cmd.PrintErrf("TAP %s show err: %d\n", t, err)
-				return
+			info, err := dpdki.GetPortInfo(t)
+			if err != nil {
+				cmd.PrintErrf("Interface %v info err: %v\n", t, err)
 			}
 
-			cmd.Printf("Known TAP interfaces:\n%s", list)
+			var names []string
+			for name := range info {
+				names = append(names, name)
+			}
+			sort.Strings(names)
+
+			for _, name := range names {
+				hd := info[name]["header"]
+				cmd.Printf("\nInterface: %v <%v %v:%v %v:%v>\n", name, hd["type"],
+					hd["pipein"], hd["pipeinport"], hd["pipeout"], hd["pipeoutport"])
+
+				if _, ok := info[name]["err"]; ok {
+					cmd.Printf("    Information: %v\n", info[name]["err"]["err"])
+				} else {
+					st := info[name]["info"]
+					cmd.Print("\n")
+
+					switch hd["type"] {
+					case "PMD":
+						cmd.Printf("  Status           : %s\n", st["status"])
+						cmd.Printf("  Autonegotiation  : %s\n", st["autoneg"])
+						cmd.Printf("  Duplex           : %s\n", st["duplex"])
+						cmd.Printf("  Link speed       : %s\n", st["speed"])
+						cmd.Printf("  Promiscuous mode : %s\n", st["promiscuous"])
+						cmd.Printf("  MAC address      : %s\n", st["macaddr"])
+						cmd.Print("\n")
+						cmd.Print("  Port specific items:\n")
+						cmd.Printf("%s\n", st["portinfo"])
+					case "TAP":
+						cmd.Print("\tno stats\n")
+					}
+				}
+			}
 		},
 	}
-	var re, li, si bool
-	tapCmd.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
-	tapCmd.Flags().BoolVarP(&li, "long", "l", false, "Show all information known for TAP interfaces.")
-	tapCmd.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information known for TAP interfaces.")
-	tapCmd.MarkFlagsMutuallyExclusive("long", "short")
 
-	parent.AddCommand(tapCmd)
+	parent.AddCommand(showCmd)
 
-	return tapCmd
+	return showCmd
 }

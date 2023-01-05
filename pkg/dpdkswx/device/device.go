@@ -34,7 +34,8 @@ type Type interface {
 	BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error
 	SetLinkUp() error
 	SetLinkDown() error
-	GetPortStatsString() (string, error)
+	GetPortInfo() (map[string]string, error)
+	GetPortStats() (map[string]string, error)
 }
 
 type Device struct {
@@ -120,6 +121,10 @@ func (d *Device) SetLinkDown() error {
 	return ErrNotImplemented
 }
 
-func (d *Device) GetPortStatsString() (string, error) {
-	return "", ErrNotImplemented
+func (d *Device) GetPortInfo() (map[string]string, error) {
+	return map[string]string{}, ErrNotImplemented
+}
+
+func (d *Device) GetPortStats() (map[string]string, error) {
+	return map[string]string{}, ErrNotImplemented
 }

@@ -6,7 +6,6 @@ package cli
 import (
 	"github.com/spf13/cobra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
-	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 )
 
 func interfaceDeviceCmd(parent *cobra.Command) *cobra.Command {
@@ -37,13 +36,14 @@ func interfaceDeviceListCmd(parent *cobra.Command) *cobra.Command {
 			var devices []string
 			var hs string
 
-			if used { //nolint:gocritic
+			switch {
+			case used:
 				devices = deviceList(UsedDevices)
 				hs = "Used"
-			} else if notused {
+			case notused:
 				devices = deviceList(UnusedDevices)
 				hs = "Not used"
-			} else {
+			default:
 				devices = deviceList(AllDevices)
 				hs = "All"
 			}
@@ -116,60 +116,4 @@ func interfaceDeviceDetachCmd(parent *cobra.Command) *cobra.Command {
 	parent.AddCommand(detachCmd)
 
 	return detachCmd
-}
-
-type DeviceFilter uint
-
-const (
-	NoFilter DeviceFilter = iota
-	AllDevices
-	UsedDevices
-	UnusedDevices
-)
-
-func completeUnusedDeviceList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
-
-	// get device list
-	listDevice := deviceList(UnusedDevices)
-
-	// filter list with string to complete
-	completions := filterCompletions(listDevice, toComplete, &directive, "No devices available for completion!")
-
-	return completions, directive
-}
-
-func deviceList(filter DeviceFilter) []string {
-	var ports []*ethdev.Ethdev
-	var key = make(map[string]bool)
-	var err error
-	dpdki := dpdkinfra.Get()
-	list := []string{}
-
-	// get list of attached EAL devices
-	switch filter {
-	case AllDevices:
-		ports, err = dpdki.GetAttachedPorts()
-	case UsedDevices:
-		ports, err = dpdki.GetUsedPorts()
-	case UnusedDevices:
-		ports, err = dpdki.GetUnusedPorts()
-	default:
-		return list
-	}
-
-	if err != nil {
-		return list
-	}
-
-	// copy devicenames and filter duplicates
-	for _, port := range ports {
-		devName := port.DevName()
-		if !key[devName] {
-			key[devName] = true
-			list = append(list, devName)
-		}
-	}
-
-	return list
 }

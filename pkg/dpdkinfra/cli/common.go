@@ -5,9 +5,14 @@ package cli
 
 import (
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
+	"github.com/stolsma/go-p4pack/pkg/dpdkinfra/portmngr"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
 const (
@@ -134,4 +139,152 @@ func filterCompletions(list []string, toComplete string, directive *cobra.ShellC
 	}
 
 	return completions
+}
+
+// complete a pktmbuf argument
+func completePktmbufArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
+
+	// get pktmbuf list
+	listPktmbuf := pktmbufList()
+
+	// filter list with string to complete
+	completions := filterCompletions(listPktmbuf, toComplete, &directive, "No Pktmbufs available for completion!")
+
+	return completions, directive
+}
+
+// retrieve all pktmbuf names and return in sorted list.
+func pktmbufList() []string {
+	dpdki := dpdkinfra.Get()
+
+	list := []string{}
+	dpdki.PktmbufStore.Iterate(func(key string, value *pktmbuf.Pktmbuf) error {
+		list = append(list, key)
+		return nil
+	})
+
+	sort.Strings(list)
+
+	return list
+}
+
+type DeviceFilter uint
+
+const (
+	NoFilter DeviceFilter = iota
+	AllDevices
+	UsedDevices
+	UnusedDevices
+)
+
+// handle completion of sorted list of unused device names
+func completeUnusedDeviceList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
+
+	// get device list
+	listDevice := deviceList(UnusedDevices)
+
+	// filter list with string to complete
+	completions := filterCompletions(listDevice, toComplete, &directive, "No devices available for completion!")
+
+	return completions, directive
+}
+
+// Get specific list of DPDK devices. Attached, Used and Unused
+func deviceList(filter DeviceFilter) []string {
+	var ports []*ethdev.Ethdev
+	var key = make(map[string]bool)
+	var err error
+	dpdki := dpdkinfra.Get()
+	list := []string{}
+
+	// get specific lists of ethdev ports
+	switch filter {
+	case AllDevices:
+		ports, err = dpdki.GetAttachedEthdevPorts()
+	case UsedDevices:
+		ports, err = dpdki.GetUsedEthdevPorts()
+	case UnusedDevices:
+		ports, err = dpdki.GetUnusedEthdevPorts()
+	default:
+		return list
+	}
+
+	if err != nil {
+		return list
+	}
+
+	// copy devicenames and filter duplicates
+	for _, port := range ports {
+		devName := port.DevName()
+		if !key[devName] {
+			key[devName] = true
+			list = append(list, devName)
+		}
+	}
+
+	return list
+}
+
+// handle completion of sorted list of port names
+func completePortList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
+
+	// get device list
+	portList := portList()
+
+	// filter list with string to complete
+	completions := filterCompletions(portList, toComplete, &directive, "No Ports available for completion!")
+
+	return completions, directive
+}
+
+// get sorted list of port names
+func portList() []string {
+	dpdki := dpdkinfra.Get()
+	list := []string{}
+
+	if err := dpdki.IteratePorts(func(key string, port portmngr.PortType) error {
+		list = append(list, port.Name())
+		return nil
+	}); err != nil {
+		return list
+	}
+
+	sort.Strings(list)
+
+	return list
+}
+
+// handle completion of sorted list of unused ethdev port names
+func completeUnusedPortList(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp // | cobra.ShellCompDirectiveNoSpace
+
+	// get device list
+	portList := unusedPortList()
+
+	// filter list with string to complete
+	completions := filterCompletions(portList, toComplete, &directive, "No Ports available for completion!")
+
+	return completions, directive
+}
+
+// get sorted list of unused ethdev port names
+func unusedPortList() []string {
+	dpdki := dpdkinfra.Get()
+	list := []string{}
+
+	ports, err := dpdki.GetUnusedEthdevPorts()
+	if err != nil {
+		return list
+	}
+
+	// copy port names and sort
+	for _, port := range ports {
+		list = append(list, port.Name())
+	}
+	sort.Strings(list)
+
+	return list
 }
