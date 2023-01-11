@@ -57,13 +57,11 @@ func (r *Ring) Init(name string, params *Params, clean func()) error {
 
 	// Node fill in
 	r.Device = &device.Device{}
-	r.SetType("RING")
-	r.SetName(name)
 	r.r = ring
 	r.size = params.Size
-
-	r.SetPipelineOutPort(device.NotBound)
-	r.SetPipelineInPort(device.NotBound)
+	r.SetType("RING")
+	r.SetName(name)
+	r.InitializeQueues(1, 1) // initialize queue setup for pipeline bind use
 	r.SetClean(clean)
 
 	return nil
@@ -110,43 +108,107 @@ func Lookup(name string, clean func()) (*Ring, error) {
 	}
 	r.SetType("RING")
 	r.SetName(name)
-	r.SetPipelineOutPort(device.NotBound)
-	r.SetPipelineInPort(device.NotBound)
+	r.InitializeQueues(1, 1) // initialize queue setup for pipeline bind use
 	r.SetClean(clean)
 
 	return r, nil
 }
 
-// bind to given pipeline input port
-func (r *Ring) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_ring_reader_params
-
-	if r.PipelineInPort() != device.NotBound {
-		return errors.New("port already bound")
-	}
-	r.SetPipelineIn(pl.GetName())
-	r.SetPipelineInPort(portID)
-
-	params.name = C.CString(r.Name())
-	defer C.free(unsafe.Pointer(params.name))
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortInConfig(portID, "ring", unsafe.Pointer(&params))
+type SwxPortRingParams struct {
+	rxParams  *C.struct_rte_swx_port_ring_reader_params
+	txParams  *C.struct_rte_swx_port_ring_writer_params
+	paramsSet bool
+	name      string
+	ringName  string
+	bsz       uint
 }
 
-// bind to given pipeline output port
-func (r *Ring) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_ring_writer_params
+func (e *SwxPortRingParams) PortName() string {
+	return e.name
+}
 
-	if r.PipelineOutPort() != device.NotBound {
+func (e *SwxPortRingParams) PortType() string {
+	return "ring"
+}
+
+func (e *SwxPortRingParams) GetReaderParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.rxParams)
+}
+
+func (e *SwxPortRingParams) GetWriterParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.txParams)
+}
+
+func (e *SwxPortRingParams) FreeParams() {
+	e.freeCParams()
+}
+
+func (e *SwxPortRingParams) createCParams() {
+	if e.paramsSet {
+		return
+	}
+
+	e.paramsSet = true
+	e.rxParams = &C.struct_rte_swx_port_ring_reader_params{
+		name:       C.CString(e.ringName),
+		burst_size: (C.uint)(e.bsz),
+	}
+	e.txParams = &C.struct_rte_swx_port_ring_writer_params{
+		name:       C.CString(e.ringName),
+		burst_size: (C.uint)(e.bsz),
+	}
+}
+
+func (e *SwxPortRingParams) freeCParams() {
+	if !e.paramsSet {
+		return
+	}
+
+	e.paramsSet = false
+	C.free(unsafe.Pointer(e.rxParams.name))
+	e.rxParams = nil
+	C.free(unsafe.Pointer(e.txParams.name))
+	e.txParams = nil
+}
+
+// bind to given pipeline input port index. A ring has 1 queue so only queue number 0 is valid.
+func (r *Ring) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint16, bsz uint) error {
+	if _, plp, err := r.GetRxQueue(rxq); err != nil {
+		return err
+	} else if plp != device.NotBound {
 		return errors.New("port already bound")
 	}
-	r.SetPipelineOut(pl.GetName())
-	r.SetPipelineOutPort(portID)
 
-	params.name = C.CString(r.Name())
-	defer C.free(unsafe.Pointer(params.name))
-	params.burst_size = (C.uint)(bsz)
+	params := &SwxPortRingParams{
+		name:     r.Name(),
+		ringName: r.Name(),
+		bsz:      bsz,
+	}
+	if err := pl.PortInConfig(portID, params); err != nil {
+		return err
+	}
 
-	return pl.PortOutConfig(portID, "ring", unsafe.Pointer(&params))
+	return r.SetRxQueue(rxq, pl.GetName(), portID)
+}
+
+// bind to given pipeline output port index. A ring has 1 queue so only queue number 0 is valid.
+func (r *Ring) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint16, bsz uint) error {
+	if _, plp, err := r.GetTxQueue(txq); err != nil {
+		return err
+	} else if plp != device.NotBound {
+		return errors.New("port already bound")
+	}
+
+	params := &SwxPortRingParams{
+		name:     r.Name(),
+		ringName: r.Name(),
+		bsz:      bsz,
+	}
+	if err := pl.PortOutConfig(portID, params); err != nil {
+		return err
+	}
+
+	return r.SetTxQueue(txq, pl.GetName(), portID)
 }

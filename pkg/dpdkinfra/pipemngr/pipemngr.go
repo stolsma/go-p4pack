@@ -41,13 +41,10 @@ func (pm *PipeMngr) PipelineCreate(plName string, numaNode int) (*pipeline.Pipel
 	var pl pipeline.Pipeline
 
 	// initialize pipeline record
-	err := pl.Init(plName, numaNode, func() {
+	if err := pl.Init(plName, numaNode, func() {
 		log.Infof("Remove pipeline %s from store", plName)
 		pm.PipelineStore.Delete(plName)
-	})
-
-	// check if something went wrong
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 

@@ -54,7 +54,7 @@ func (pc *PipelineConfig) GetThreadID() uint {
 
 type InPortConfig struct {
 	IfaceName string `json:"ifacename"`
-	RxQueue   uint   `json:"rxqueue"`
+	RxQueue   uint16 `json:"rxqueue"`
 	Bsz       uint   `json:"bsz"`
 }
 
@@ -62,7 +62,7 @@ func (pc *InPortConfig) GetIfaceName() string {
 	return pc.IfaceName
 }
 
-func (pc *InPortConfig) GetRxQueue() uint {
+func (pc *InPortConfig) GetRxQueue() uint16 {
 	return pc.RxQueue
 }
 
@@ -72,7 +72,7 @@ func (pc *InPortConfig) GetBsz() uint {
 
 type OutPortConfig struct {
 	IfaceName string `json:"ifacename"`
-	TxQueue   uint   `json:"txqueue"`
+	TxQueue   uint16 `json:"txqueue"`
 	Bsz       uint   `json:"bsz"`
 }
 
@@ -80,7 +80,7 @@ func (pc *OutPortConfig) GetIfaceName() string {
 	return pc.IfaceName
 }
 
-func (pc *OutPortConfig) GetTxQueue() uint {
+func (pc *OutPortConfig) GetTxQueue() uint16 {
 	return pc.TxQueue
 }
 

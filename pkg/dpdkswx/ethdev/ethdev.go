@@ -77,7 +77,7 @@ func (ethdev *Ethdev) Init(name string) {
 	ethdev.SetName(name)
 }
 
-// Create and/or configure DPDK Ethdev device. Returns error when something went wrong.
+// Configure DPDK Ethdev device. Returns error when something went wrong.
 func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	var status C.int
 	var res error
@@ -195,6 +195,9 @@ func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 		}
 	}
 
+	// initialize queue setup for pipeline bind use
+	ethdev.InitializeQueues(params.Rx.NQueues, params.Tx.NQueues)
+
 	// Device start
 	res = portID.Start()
 	if res != nil {
@@ -225,11 +228,6 @@ func (ethdev *Ethdev) Initialize(params *Params, clean func()) error {
 	if res != nil {
 		return res
 	}
-	ethdev.nRxQ = params.Rx.NQueues
-	ethdev.nTxQ = params.Tx.NQueues
-
-	ethdev.SetPipelineOutPort(device.NotBound)
-	ethdev.SetPipelineInPort(device.NotBound)
 	ethdev.SetClean(clean)
 
 	return nil
@@ -285,40 +283,108 @@ func rssSetup(portID lled.Port, retaSize uint16, rss ParamsRss) int {
 	return status
 }
 
-// bind to given pipeline input port
-func (ethdev *Ethdev) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_ethdev_reader_params
+type SwxPortEthdevParams struct {
+	rxParams  *C.struct_rte_swx_port_ethdev_reader_params
+	txParams  *C.struct_rte_swx_port_ethdev_writer_params
+	paramsSet bool
+	name      string
+	devName   string
+	queueID   uint16
+	bsz       uint
+}
 
-	if ethdev.PipelineInPort() != device.NotBound {
+func (e *SwxPortEthdevParams) PortName() string {
+	return e.name
+}
+
+func (e *SwxPortEthdevParams) PortType() string {
+	return "ethdev"
+}
+
+func (e *SwxPortEthdevParams) GetReaderParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.rxParams)
+}
+
+func (e *SwxPortEthdevParams) GetWriterParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.txParams)
+}
+
+func (e *SwxPortEthdevParams) FreeParams() {
+	e.freeCParams()
+}
+
+func (e *SwxPortEthdevParams) createCParams() {
+	if e.paramsSet {
+		return
+	}
+
+	e.paramsSet = true
+	e.rxParams = &C.struct_rte_swx_port_ethdev_reader_params{
+		dev_name:   C.CString(e.devName),
+		queue_id:   C.ushort(e.queueID),
+		burst_size: (C.uint)(e.bsz),
+	}
+	e.txParams = &C.struct_rte_swx_port_ethdev_writer_params{
+		dev_name:   C.CString(e.devName),
+		queue_id:   C.ushort(e.queueID),
+		burst_size: (C.uint)(e.bsz),
+	}
+}
+
+func (e *SwxPortEthdevParams) freeCParams() {
+	if !e.paramsSet {
+		return
+	}
+
+	e.paramsSet = false
+	C.free(unsafe.Pointer(e.rxParams.dev_name))
+	e.rxParams = nil
+	C.free(unsafe.Pointer(e.txParams.dev_name))
+	e.txParams = nil
+}
+
+// bind to given pipeline input port
+func (ethdev *Ethdev) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint16, bsz uint) error {
+	if _, plp, err := ethdev.GetRxQueue(rxq); err != nil {
+		return err
+	} else if plp != device.NotBound {
 		return errors.New("port already bound")
 	}
-	ethdev.SetPipelineIn(pl.GetName())
-	ethdev.SetPipelineInPort(portID)
 
-	params.dev_name = C.CString(ethdev.DevName())
-	defer C.free(unsafe.Pointer(params.dev_name))
-	params.queue_id = C.ushort(rxq)
-	params.burst_size = (C.uint)(bsz)
+	params := &SwxPortEthdevParams{
+		name:    ethdev.Name(),
+		devName: ethdev.DevName(),
+		queueID: rxq,
+		bsz:     bsz,
+	}
+	if err := pl.PortInConfig(portID, params); err != nil {
+		return err
+	}
 
-	return pl.PortInConfig(portID, "ethdev", unsafe.Pointer(&params))
+	return ethdev.SetRxQueue(rxq, pl.GetName(), portID)
 }
 
 // bind to given pipeline output port
-func (ethdev *Ethdev) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_ethdev_writer_params
-
-	if ethdev.PipelineOutPort() != device.NotBound {
+func (ethdev *Ethdev) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint16, bsz uint) error {
+	if _, plp, err := ethdev.GetTxQueue(txq); err != nil {
+		return err
+	} else if plp != device.NotBound {
 		return errors.New("port already bound")
 	}
-	ethdev.SetPipelineOut(pl.GetName())
-	ethdev.SetPipelineOutPort(portID)
 
-	params.dev_name = C.CString(ethdev.DevName())
-	defer C.free(unsafe.Pointer(params.dev_name))
-	params.queue_id = C.ushort(txq)
-	params.burst_size = (C.uint)(bsz)
+	params := &SwxPortEthdevParams{
+		name:    ethdev.Name(),
+		devName: ethdev.DevName(),
+		queueID: txq,
+		bsz:     bsz,
+	}
+	if err := pl.PortOutConfig(portID, params); err != nil {
+		return err
+	}
 
-	return pl.PortOutConfig(portID, "ethdev", unsafe.Pointer(&params))
+	return ethdev.SetTxQueue(txq, pl.GetName(), portID)
 }
 
 func (ethdev *Ethdev) IsUp() (bool, error) {

@@ -81,7 +81,7 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 		Args:  cobra.MatchAll(cobra.MinimumNArgs(7), cobra.MaximumNArgs(9)),
 		ValidArgsFunction: ValidateArguments(
 			AppendHelp("You must choose a name for the ethdev interface you are adding"),
-			completeUnusedPortList,
+			completeUnusedEthdevPortList,
 			completePktmbufArg,
 			AppendHelp("You must specify the number of transmit queues for the ethdev interface you are adding"),
 			AppendHelp("You must specify the transmit queuesize for the ethdev interface you are adding"),

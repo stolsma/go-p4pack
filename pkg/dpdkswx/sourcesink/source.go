@@ -50,9 +50,7 @@ func (s *Source) Init(name string, params *SourceParams, clean func()) error {
 	s.nLoops = params.NLoops
 	s.nPktsMax = params.NPktsMax
 	s.pktmbuf = params.Pktmbuf
-
-	s.SetPipelineOutPort(device.NotBound)
-	s.SetPipelineInPort(device.NotBound)
+	s.InitializeQueues(1, 0) // initialize queue setup for pipeline bind use
 	s.SetClean(clean)
 
 	return nil
@@ -68,26 +66,84 @@ func (s *Source) Free() error {
 	return nil
 }
 
-// bind to given pipeline input port
-func (s *Source) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_source_params
+type SwxPortSourceParams struct {
+	rxParams  *C.struct_rte_swx_port_source_params
+	paramsSet bool
+	name      string
+	mempool   *C.struct_rte_mempool
+	fileName  string
+	nLoops    uint64
+	nPktsMax  uint32
+}
 
-	if s.PipelineInPort() != device.NotBound {
+func (e *SwxPortSourceParams) PortName() string {
+	return e.name
+}
+
+func (e *SwxPortSourceParams) PortType() string {
+	return "source"
+}
+
+func (e *SwxPortSourceParams) GetReaderParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.rxParams)
+}
+
+func (e *SwxPortSourceParams) GetWriterParams() unsafe.Pointer {
+	return nil
+}
+
+func (e *SwxPortSourceParams) FreeParams() {
+	e.freeCParams()
+}
+
+func (e *SwxPortSourceParams) createCParams() {
+	if e.paramsSet {
+		return
+	}
+
+	e.paramsSet = true
+	e.rxParams = &C.struct_rte_swx_port_source_params{
+		pool:       e.mempool,
+		file_name:  C.CString(e.fileName),
+		n_loops:    C.ulong(e.nLoops),
+		n_pkts_max: C.uint(e.nPktsMax),
+	}
+}
+
+func (e *SwxPortSourceParams) freeCParams() {
+	if !e.paramsSet {
+		return
+	}
+
+	e.paramsSet = false
+	C.free(unsafe.Pointer(e.rxParams.file_name))
+	e.rxParams = nil
+}
+
+// bind to given pipeline input port
+func (s *Source) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint16, bsz uint) error {
+	if _, plp, err := s.GetRxQueue(rxq); err != nil {
+		return err
+	} else if plp != device.NotBound {
 		return errors.New("port already bound")
 	}
-	s.SetPipelineIn(pl.GetName())
-	s.SetPipelineInPort(portID)
 
-	params.file_name = C.CString(s.fileName)
-	defer C.free(unsafe.Pointer(params.file_name))
-	params.n_loops = C.ulong(s.nLoops)
-	params.n_pkts_max = C.uint(s.nPktsMax)
-	params.pool = (*C.struct_rte_mempool)(unsafe.Pointer(s.pktmbuf.Mempool()))
+	params := &SwxPortSourceParams{
+		name:     s.Name(),
+		fileName: s.fileName,
+		mempool:  (*C.struct_rte_mempool)(unsafe.Pointer(s.pktmbuf.Mempool())),
+		nLoops:   s.nLoops,
+		nPktsMax: s.nPktsMax,
+	}
+	if err := pl.PortInConfig(portID, params); err != nil {
+		return err
+	}
 
-	return pl.PortInConfig(portID, "source", unsafe.Pointer(&params))
+	return s.SetRxQueue(rxq, pl.GetName(), portID)
 }
 
 // bind to given pipeline output port
-func (s *Source) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
+func (s *Source) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint16, bsz uint) error {
 	return errors.New("can't bind source device to pipeline output port")
 }

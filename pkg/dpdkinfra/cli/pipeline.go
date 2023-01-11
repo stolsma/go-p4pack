@@ -22,16 +22,48 @@ func pipelineCmd(parent *cobra.Command) *cobra.Command {
 		Aliases: []string{"pl"},
 	}
 
+	pipelineBindCmd(pipelineCmd)
 	pipelineInfoCmd(pipelineCmd)
 	pipelineStatsCmd(pipelineCmd)
 	parent.AddCommand(pipelineCmd)
 	return pipelineCmd
 }
 
+func pipelineBindCmd(parent *cobra.Command) *cobra.Command {
+	bindCmd := &cobra.Command{
+		Use:     "bind [interface:{rx|tx}:queue#] [pipeline] [pipeline port] [burstsize]",
+		Short:   "b",
+		Aliases: []string{"bin"},
+		Args:    cobra.RangeArgs(2, 4),
+		ValidArgsFunction: ValidateArguments(
+			completeUnboundQueueArg,
+			completeBuildNotEnabledPipelineArg,
+			AppendHelp("You must specify the pipeline port for the queue you are binding"),
+			AppendHelp("You must specify the burstsize for the queue you are binding"),
+			AppendLastHelp(4, "This command does not take any more arguments"),
+		),
+		Run: func(cmd *cobra.Command, args []string) {
+			/* TODO Handle bind command
+			dpdki := dpdkinfra.Get()
+			plName := ""
+
+			// check specific pipeline or all
+			if len(args) == 2 {
+				plName = args[1]
+			}
+			*/
+		},
+	}
+
+	parent.AddCommand(bindCmd)
+
+	return bindCmd
+}
+
 func pipelineInfoCmd(parent *cobra.Command) *cobra.Command {
 	infoCmd := &cobra.Command{
 		Use:     "info [pipeline]",
-		Short:   "info",
+		Short:   "i",
 		Aliases: []string{"i"},
 		Args:    cobra.MaximumNArgs(1),
 		ValidArgsFunction: ValidateArguments(
@@ -69,7 +101,7 @@ func pipelineStatsCmd(parent *cobra.Command) *cobra.Command {
 	var re, li, si bool
 	statsCmd := &cobra.Command{
 		Use:     "stats [pipeline]",
-		Short:   "stats",
+		Short:   "st",
 		Aliases: []string{"st"},
 		Args:    cobra.MaximumNArgs(1),
 		ValidArgsFunction: ValidateArguments(
@@ -151,12 +183,12 @@ func printSinglePipelineStats(cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, pl
 	return strings.Count(stats, "\n"), nil
 }
 
-// complete a pipeline argument
+// complete an all pipeline argument
 func completePipelineArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	var directive = cobra.ShellCompDirectiveNoFileComp
 
 	// get pipeline list
-	listPl := pipelineList()
+	listPl := pipelineList(AllPipelines)
 
 	// filter list with string to complete
 	completions := filterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
@@ -164,12 +196,62 @@ func completePipelineArg(cmd *cobra.Command, args []string, toComplete string) (
 	return completions, directive
 }
 
+// complete an BuildNotEnabledPipelines argument
+func completeBuildNotEnabledPipelineArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp
+
+	// get BuildNotEnabledPipelines list
+	listPl := pipelineList(BuildNotEnabledPipelines)
+
+	// filter list with string to complete
+	completions := filterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
+
+	return completions, directive
+}
+
+// complete a queue argument
+func completeUnboundQueueArg(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	var directive = cobra.ShellCompDirectiveNoFileComp
+
+	// get queue list
+	qList := portQueueList(UnboundQueues)
+
+	// filter list with string to complete
+	completions := filterCompletions(qList, toComplete, &directive, "No queues available for completion!")
+
+	return completions, directive
+}
+
+type PipelineFilter uint
+
+const (
+	AllPipelines PipelineFilter = iota + 1
+	BuildPipelines
+	BuildNotEnabledPipelines
+	EnabledPipelines
+)
+
 // retrieve all pipeline names and return in sorted list.
-func pipelineList() []string {
+func pipelineList(filter PipelineFilter) []string {
 	dpdki := dpdkinfra.Get()
 
 	list := []string{}
-	dpdki.PipelineStore.Iterate(func(key string, value *pipeline.Pipeline) error {
+	dpdki.PipelineStore.Iterate(func(key string, pl *pipeline.Pipeline) error {
+		switch filter {
+		case BuildPipelines:
+			if !pl.IsBuild() {
+				return nil
+			}
+		case BuildNotEnabledPipelines:
+			if !pl.IsBuild() || pl.IsEnabled() {
+				return nil
+			}
+		case EnabledPipelines:
+			if !pl.IsEnabled() {
+				return nil
+			}
+		}
+
 		list = append(list, key)
 		return nil
 	})

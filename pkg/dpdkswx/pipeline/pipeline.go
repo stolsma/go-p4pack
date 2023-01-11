@@ -77,6 +77,16 @@ func init() {
 	})
 }
 
+type PortParamsType interface {
+	PortName() string
+	PortType() string
+	GetReaderParams() unsafe.Pointer
+	GetWriterParams() unsafe.Pointer
+	FreeParams()
+}
+
+type swxPorts map[int]PortParamsType
+
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
 type Pipeline struct {
 	Ctl                                      // Pipeline Control Struct inclusion
@@ -86,6 +96,8 @@ type Pipeline struct {
 	build         bool                       // the pipeline is build
 	enabled       bool                       // the pipeline is enabled
 	threadID      uint                       // ID of the Lcore thread this pipeline is running on
+	portIn        swxPorts                   // All added input ports
+	portOut       swxPorts                   // all added output ports
 	actions       ActionStore                // all the defined actions in this pipeline when build
 	tables        TableStore                 // all the defined tables in this pipeline when build
 	// ports_in
@@ -124,6 +136,8 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	pl.timerPeriodms = 100
 	pl.build = false
 	pl.enabled = false
+	pl.portIn = make(swxPorts, 265)
+	pl.portOut = make(swxPorts, 265)
 	pl.clean = clean
 
 	return nil
@@ -172,27 +186,45 @@ func (pl *Pipeline) GetTimerPeriodms() uint {
 	return pl.timerPeriodms
 }
 
-func (pl *Pipeline) PortInConfig(portID int, portType string, params unsafe.Pointer) error {
-	ptype := C.CString(portType)
+func (pl *Pipeline) IsBuild() bool {
+	return pl.build
+}
+
+func (pl *Pipeline) IsEnabled() bool {
+	return pl.enabled
+}
+
+func (pl *Pipeline) PortInConfig(portID int, params PortParamsType) error {
+	if pl.portIn[portID] != nil {
+		return errors.New("port already bound")
+	}
+
+	ptype := C.CString(params.PortType())
 	defer C.free(unsafe.Pointer(ptype))
-
-	status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, params)
-
-	if status != 0 {
+	defer params.FreeParams()
+	if status := C.rte_swx_pipeline_port_in_config(pl.p, (C.uint)(portID), ptype, params.GetReaderParams()); status != 0 {
 		return common.Err(status)
 	}
+
+	pl.portIn[portID] = params
+
 	return nil
 }
 
-func (pl *Pipeline) PortOutConfig(portID int, portType string, params unsafe.Pointer) error {
-	ptype := C.CString(portType)
+func (pl *Pipeline) PortOutConfig(portID int, params PortParamsType) error {
+	if pl.portOut[portID] != nil {
+		return errors.New("port already bound")
+	}
+
+	ptype := C.CString(params.PortType())
 	defer C.free(unsafe.Pointer(ptype))
-
-	status := C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, params)
-
-	if status != 0 {
+	defer params.FreeParams()
+	if status := C.rte_swx_pipeline_port_out_config(pl.p, (C.uint)(portID), ptype, params.GetWriterParams()); status != 0 {
 		return common.Err(status)
 	}
+
+	pl.portOut[portID] = params
+
 	return nil
 }
 
@@ -263,12 +295,8 @@ func (pl *Pipeline) SetDisabled() error {
 	return nil
 }
 
-// Pipeline NUMA node get
-//
-// @return int numaNode Pipeline NUMA node.
-//
-// @return 0 on success or the following error codes otherwise:
-// -EINVAL: Invalid argument.
+// Pipeline NUMA node get, return the NUMA node the pipeline is configured to run on.
+// Following error codes possible: -EINVAL - Invalid argument.
 func (pl *Pipeline) NumaNodeGet() (int, error) {
 	var numaNode C.int
 

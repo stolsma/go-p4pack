@@ -249,6 +249,35 @@ func (pm *PortMngr) DetachDevice(device string) (*eal.DevArgs, error) {
 	return &devArgs, nil
 }
 
+// Get all raw DPDK ethdev ports
+func (pm *PortMngr) GetAttachedEthdevPorts() ([]*ethdev.Ethdev, error) {
+	return ethdev.GetAttachedPorts()
+}
+
+// Get all unused raw DPDK ethdev ports
+func (pm *PortMngr) GetUnusedEthdevPorts() ([]*ethdev.Ethdev, error) {
+	var ports []*ethdev.Ethdev
+
+	rawPorts, err := ethdev.GetAttachedPorts()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rp := range rawPorts {
+		if err := pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
+			if v.SamePort(rp) {
+				return errors.New("port is used")
+			}
+			return nil
+		}); err != nil {
+			continue
+		}
+		ports = append(ports, rp)
+	}
+
+	return ports, nil
+}
+
 // EthdevCreate creates a ethdev and stores it in the portmngr ethdev store
 func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Ethdev, error) {
 	var e ethdev.Ethdev
@@ -270,44 +299,32 @@ func (pm *PortMngr) EthdevCreate(name string, params *ethdev.Params) (*ethdev.Et
 	return &e, nil
 }
 
-// Get all raw DPDK ethdev ports
-func (pm *PortMngr) GetAttachedEthdevPorts() ([]*ethdev.Ethdev, error) {
-	return ethdev.GetAttachedPorts()
-}
+type EthdevPortFilter uint
 
-// Get all used DPDK ethdev ports
-func (pm *PortMngr) GetUsedEthdevPorts() ([]*ethdev.Ethdev, error) {
+const (
+	AllEthdevPorts     EthdevPortFilter = iota + 1 // All created ethdev ports
+	UnboundEthdevPorts                             // All ethdev ports created but not bound with one of its queues to a pipeline
+	BoundEthdevPorts                               // All ethdev ports created and with one or more queues bound to a pipeline
+)
+
+// Get DPDK ethdev ports with filter applied
+func (pm *PortMngr) GetEthdevPorts(filter EthdevPortFilter) ([]*ethdev.Ethdev, error) {
 	var ports []*ethdev.Ethdev
 
-	pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
-		ports = append(ports, v)
+	pm.EthdevStore.Iterate(func(k string, e *ethdev.Ethdev) error {
+		switch filter {
+		case UnboundEthdevPorts:
+			if e.IsBound() {
+				return nil
+			}
+		case BoundEthdevPorts:
+			if !e.IsBound() {
+				return nil
+			}
+		}
+		ports = append(ports, e)
 		return nil
 	})
-
-	return ports, nil
-}
-
-// Get all unused raw DPDK ethdev ports
-func (pm *PortMngr) GetUnusedEthdevPorts() ([]*ethdev.Ethdev, error) {
-	var ports []*ethdev.Ethdev
-
-	rawPorts, err := ethdev.GetAttachedPorts()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, rp := range rawPorts {
-		err := pm.EthdevStore.Iterate(func(k string, v *ethdev.Ethdev) error {
-			if v.SamePort(rp) {
-				return errors.New("port is used")
-			}
-			return nil
-		})
-		if err != nil {
-			continue
-		}
-		ports = append(ports, rp)
-	}
 
 	return ports, nil
 }
@@ -344,14 +361,25 @@ func (pm *PortMngr) GetPortInfo(name string) (map[string]map[string]map[string]s
 		result[key]["header"] = make(map[string]string)
 		result[key]["header"]["name"] = port.Name()
 		result[key]["header"]["type"] = port.Type()
-		if port.PipelineInPort() != device.NotBound {
-			result[key]["header"]["pipein"] = port.PipelineIn()
-			result[key]["header"]["pipeinport"] = fmt.Sprintf("%v", port.PipelineInPort())
+
+		rxPipe := ""
+		if err := port.IterateRxQueues(func(i uint16, q device.Queue) error {
+			rxPipe += fmt.Sprintf("%s:%d ", q.Pipeline(), q.PipelinePort())
+			return nil
+		}); err != nil {
+			return err
 		}
-		if port.PipelineOutPort() != device.NotBound {
-			result[key]["header"]["pipeout"] = port.PipelineOut()
-			result[key]["header"]["pipeoutport"] = fmt.Sprintf("%v", port.PipelineOutPort())
+		result[key]["header"]["rxqueuebound"] = rxPipe
+
+		txPipe := ""
+		if err := port.IterateTxQueues(func(i uint16, q device.Queue) error {
+			txPipe += fmt.Sprintf("%s:%d ", q.Pipeline(), q.PipelinePort())
+			return nil
+		}); err != nil {
+			return err
 		}
+		result[key]["header"]["txqueuebound"] = txPipe
+
 		// TODO add linkstate!
 
 		info, err := port.GetPortInfo()
@@ -395,14 +423,25 @@ func (pm *PortMngr) GetPortStats(name string) (map[string]map[string]map[string]
 		result[key]["header"] = make(map[string]string)
 		result[key]["header"]["name"] = port.Name()
 		result[key]["header"]["type"] = port.Type()
-		if port.PipelineInPort() != device.NotBound {
-			result[key]["header"]["pipein"] = port.PipelineIn()
-			result[key]["header"]["pipeinport"] = fmt.Sprintf("%v", port.PipelineInPort())
+
+		rxPipe := ""
+		if err := port.IterateRxQueues(func(i uint16, q device.Queue) error {
+			rxPipe += fmt.Sprintf("%s:%d ", q.Pipeline(), q.PipelinePort())
+			return nil
+		}); err != nil {
+			return err
 		}
-		if port.PipelineOutPort() != device.NotBound {
-			result[key]["header"]["pipeout"] = port.PipelineOut()
-			result[key]["header"]["pipeoutport"] = fmt.Sprintf("%v", port.PipelineOutPort())
+		result[key]["header"]["rxqueuebound"] = rxPipe
+
+		txPipe := ""
+		if err := port.IterateTxQueues(func(i uint16, q device.Queue) error {
+			txPipe += fmt.Sprintf("%s:%d ", q.Pipeline(), q.PipelinePort())
+			return nil
+		}); err != nil {
+			return err
 		}
+		result[key]["header"]["txqueuebound"] = txPipe
+
 		// TODO add linkstate!
 
 		stats, err := port.GetPortStats()

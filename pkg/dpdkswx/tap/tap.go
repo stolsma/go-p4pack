@@ -83,9 +83,7 @@ func (tap *Tap) Init(name string, params *Params, clean func()) error {
 	tap.fd = fd
 	tap.mtu = params.Mtu
 	tap.pktmbuf = params.Pktmbuf
-
-	tap.SetPipelineOutPort(device.NotBound)
-	tap.SetPipelineInPort(device.NotBound)
+	tap.InitializeQueues(1, 1) // initialize queue setup for pipeline bind use
 	tap.SetClean(clean)
 
 	return nil
@@ -111,36 +109,106 @@ func (tap *Tap) Free() error {
 	return nil
 }
 
-// bind to given pipeline input port
-func (tap *Tap) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_fd_reader_params
+type SwxPortTapParams struct {
+	rxParams  *C.struct_rte_swx_port_fd_reader_params
+	txParams  *C.struct_rte_swx_port_fd_writer_params
+	paramsSet bool
+	name      string
 
-	if tap.PipelineInPort() != device.NotBound {
-		return errors.New("port already bound")
-	}
-	tap.SetPipelineIn(pl.GetName())
-	tap.SetPipelineInPort(portID)
-
-	params.fd = tap.Fd()
-	params.mempool = (*C.struct_rte_mempool)(unsafe.Pointer(tap.pktmbuf.Mempool()))
-	params.mtu = (C.uint)(tap.mtu)
-	params.burst_size = (C.uint)(bsz)
-
-	return pl.PortInConfig(portID, "fd", unsafe.Pointer(&params))
+	fd      C.int
+	mtu     uint
+	mempool *C.struct_rte_mempool
+	bsz     uint
 }
 
-// bind to given pipeline output port
-func (tap *Tap) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint, bsz uint) error {
-	var params C.struct_rte_swx_port_fd_writer_params
+func (e *SwxPortTapParams) PortName() string {
+	return e.name
+}
 
-	if tap.PipelineOutPort() != device.NotBound {
+func (e *SwxPortTapParams) PortType() string {
+	return "fd"
+}
+
+func (e *SwxPortTapParams) GetReaderParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.rxParams)
+}
+
+func (e *SwxPortTapParams) GetWriterParams() unsafe.Pointer {
+	e.createCParams()
+	return unsafe.Pointer(e.txParams)
+}
+
+func (e *SwxPortTapParams) FreeParams() {
+	e.freeCParams()
+}
+
+func (e *SwxPortTapParams) createCParams() {
+	if e.paramsSet {
+		return
+	}
+
+	e.paramsSet = true
+	e.rxParams = &C.struct_rte_swx_port_fd_reader_params{
+		fd:         e.fd,
+		mtu:        (C.uint)(e.mtu),
+		mempool:    e.mempool,
+		burst_size: (C.uint)(e.bsz),
+	}
+	e.txParams = &C.struct_rte_swx_port_fd_writer_params{
+		fd:         e.fd,
+		burst_size: (C.uint)(e.bsz),
+	}
+}
+
+func (e *SwxPortTapParams) freeCParams() {
+	if !e.paramsSet {
+		return
+	}
+
+	e.paramsSet = false
+	e.rxParams = nil
+	e.txParams = nil
+}
+
+// bind to given pipeline input port. A tap has 1 queue so only queue number 0 is valid.
+func (tap *Tap) BindToPipelineInputPort(pl *pipeline.Pipeline, portID int, rxq uint16, bsz uint) error {
+	if _, plp, err := tap.GetRxQueue(rxq); err != nil {
+		return err
+	} else if plp != device.NotBound {
 		return errors.New("port already bound")
 	}
-	tap.SetPipelineOut(pl.GetName())
-	tap.SetPipelineOutPort(portID)
 
-	params.fd = tap.Fd()
-	params.burst_size = (C.uint)(bsz)
+	params := &SwxPortTapParams{
+		name:    tap.Name(),
+		fd:      tap.Fd(),
+		mempool: (*C.struct_rte_mempool)(unsafe.Pointer(tap.pktmbuf.Mempool())),
+		mtu:     (uint)(tap.mtu),
+		bsz:     bsz,
+	}
+	if err := pl.PortInConfig(portID, params); err != nil {
+		return err
+	}
 
-	return pl.PortOutConfig(portID, "fd", unsafe.Pointer(&params))
+	return tap.SetRxQueue(rxq, pl.GetName(), portID)
+}
+
+// bind to given pipeline output port. A tap has 1 queue so only queue number 0 is valid.
+func (tap *Tap) BindToPipelineOutputPort(pl *pipeline.Pipeline, portID int, txq uint16, bsz uint) error {
+	if _, plp, err := tap.GetTxQueue(txq); err != nil {
+		return err
+	} else if plp != device.NotBound {
+		return errors.New("port already bound")
+	}
+
+	params := &SwxPortTapParams{
+		name: tap.Name(),
+		fd:   tap.Fd(),
+		bsz:  bsz,
+	}
+	if err := pl.PortOutConfig(portID, params); err != nil {
+		return err
+	}
+
+	return tap.SetTxQueue(txq, pl.GetName(), portID)
 }

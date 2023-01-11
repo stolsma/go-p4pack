@@ -40,8 +40,7 @@ func interfaceShowCmd(parent *cobra.Command) *cobra.Command {
 
 			for _, name := range names {
 				hd := info[name]["header"]
-				cmd.Printf("\nInterface: %v <%v %v:%v %v:%v>\n", name, hd["type"],
-					hd["pipein"], hd["pipeinport"], hd["pipeout"], hd["pipeoutport"])
+				cmd.Printf("\nInterface: %v <%v rx: %v tx: %v>\n", name, hd["type"], hd["rxqueuebound"], hd["txqueuebound"])
 
 				if _, ok := info[name]["err"]; ok {
 					cmd.Printf("    Information: %v\n", info[name]["err"]["err"])
