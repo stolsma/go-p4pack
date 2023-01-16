@@ -9,50 +9,51 @@ package pipeline
 */
 import "C"
 import (
-	"errors"
 	"fmt"
+
+	"github.com/stolsma/go-p4pack/pkg/dpdkswx/common"
 )
 
 type Info C.struct_rte_swx_ctl_pipeline_info
 
-func (pi *Info) GetNPortsIn() int {
-	return int(pi.n_ports_in)
+func (pi *Info) GetNPortsIn() uint {
+	return uint(pi.n_ports_in)
 }
 
-func (pi *Info) GetNPortsOut() int {
-	return int(pi.n_ports_out)
+func (pi *Info) GetNPortsOut() uint {
+	return uint(pi.n_ports_out)
 }
 
-func (pi *Info) GetNMirroringSlots() int {
-	return int(pi.n_mirroring_slots)
+func (pi *Info) GetNMirroringSlots() uint {
+	return uint(pi.n_mirroring_slots)
 }
 
-func (pi *Info) GetNMirroringSessions() int {
-	return int(pi.n_mirroring_sessions)
+func (pi *Info) GetNMirroringSessions() uint {
+	return uint(pi.n_mirroring_sessions)
 }
 
-func (pi *Info) GetNActions() int {
-	return int(pi.n_actions)
+func (pi *Info) GetNActions() uint {
+	return uint(pi.n_actions)
 }
 
-func (pi *Info) GetNTables() int {
-	return int(pi.n_tables)
+func (pi *Info) GetNTables() uint {
+	return uint(pi.n_tables)
 }
 
-func (pi *Info) GetNSelectors() int {
-	return int(pi.n_selectors)
+func (pi *Info) GetNSelectors() uint {
+	return uint(pi.n_selectors)
 }
 
-func (pi *Info) GetNLearners() int {
-	return int(pi.n_learners)
+func (pi *Info) GetNLearners() uint {
+	return uint(pi.n_learners)
 }
 
-func (pi *Info) GetNRegarrays() int {
-	return int(pi.n_regarrays)
+func (pi *Info) GetNRegarrays() uint {
+	return uint(pi.n_regarrays)
 }
 
-func (pi *Info) GetNMetarrays() int {
-	return int(pi.n_metarrays)
+func (pi *Info) GetNMetarrays() uint {
+	return uint(pi.n_metarrays)
 }
 
 const infoTemplate = `ports in           : %d
@@ -73,14 +74,17 @@ func (pi *Info) String() string {
 		pi.n_actions, pi.n_tables, pi.n_selectors, pi.n_learners, pi.n_regarrays, pi.n_metarrays)
 }
 
+// Pipeline info get
+//
+// Get the pipeline info. Returns Info on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
 func (pl *Pipeline) PipelineInfoGet() (*Info, error) {
 	var pipeInfo Info
 
-	res := C.rte_swx_ctl_pipeline_info_get(pl.p, (*C.struct_rte_swx_ctl_pipeline_info)(&pipeInfo))
-	if res < 0 {
-		return nil, errors.New("PipelineInfoGet failed")
+	if status := C.rte_swx_ctl_pipeline_info_get(pl.p, (*C.struct_rte_swx_ctl_pipeline_info)(&pipeInfo)); status != 0 {
+		return nil, common.Err(status)
 	}
-
 	return &pipeInfo, nil
 }
 
@@ -90,18 +94,23 @@ func (ai *ActionInfo) GetName() string {
 	return C.GoString(&ai.name[0])
 }
 
-func (ai *ActionInfo) GetNArgs() int {
-	return (int)(ai.n_args)
+func (ai *ActionInfo) GetNArgs() uint {
+	return (uint)(ai.n_args)
 }
 
-func (pl *Pipeline) ActionInfoGet(actionID int) (*ActionInfo, error) {
+// Action info get
+//
+// Get the action (actionID) info. Returns ActionInfo on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) ActionInfoGet(actionID uint) (*ActionInfo, error) {
 	var actionInfo = &ActionInfo{}
-	result := C.rte_swx_ctl_action_info_get(pl.p, (C.uint)(actionID), (*C.struct_rte_swx_ctl_action_info)(actionInfo))
 
-	if result != 0 {
-		return nil, fmt.Errorf("action_info_get error: %d", result)
+	if status := C.rte_swx_ctl_action_info_get(pl.p, (C.uint)(actionID),
+		(*C.struct_rte_swx_ctl_action_info)(actionInfo),
+	); status != 0 {
+		return nil, common.Err(status)
 	}
-
 	return actionInfo, nil
 }
 
@@ -122,15 +131,20 @@ func (aai *ActionArgInfo) IsNetworkByteOrder() bool {
 	return aai.is_network_byte_order == 0
 }
 
-func (pl *Pipeline) ActionArgInfoGet(actionID int, actionArgID int) (*ActionArgInfo, error) {
+// Action arguments info get
+//
+// Get the action (actionID) argument (actionArgID) info. Returns ActionArgInfo on success or the following error codes
+// otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) ActionArgInfoGet(actionID uint, actionArgID uint) (*ActionArgInfo, error) {
 	var actionArgInfo = &ActionArgInfo{}
-	result := C.rte_swx_ctl_action_arg_info_get(pl.p, (C.uint)(actionID), (C.uint)(actionArgID),
-		(*C.struct_rte_swx_ctl_action_arg_info)(actionArgInfo))
 
-	if result != 0 {
-		return nil, fmt.Errorf("action_info_get error: %d", result)
+	if status := C.rte_swx_ctl_action_arg_info_get(pl.p, (C.uint)(actionID), (C.uint)(actionArgID),
+		(*C.struct_rte_swx_ctl_action_arg_info)(actionArgInfo),
+	); status != 0 {
+		return nil, common.Err(status)
 	}
-
 	return actionArgInfo, nil
 }
 
@@ -146,12 +160,12 @@ func (ti *TableInfo) GetArgs() string {
 	return C.GoString(&ti.args[0])
 }
 
-func (ti *TableInfo) GetNMatchFields() int {
-	return int(ti.n_match_fields)
+func (ti *TableInfo) GetNMatchFields() uint {
+	return uint(ti.n_match_fields)
 }
 
-func (ti *TableInfo) GetNActions() int {
-	return int(ti.n_actions)
+func (ti *TableInfo) GetNActions() uint {
+	return uint(ti.n_actions)
 }
 
 func (ti *TableInfo) GetDefaultActionIsConst() bool {
@@ -162,12 +176,16 @@ func (ti *TableInfo) GetSize() int {
 	return int(ti.size)
 }
 
-func (pl *Pipeline) TableInfoGet(tableID int) (*TableInfo, error) {
+// Table info get
+//
+// Get the table (tableID) info. Returns TableInfo on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) TableInfoGet(tableID uint) (*TableInfo, error) {
 	var tableInfo TableInfo
 
-	status := C.rte_swx_ctl_table_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_table_info)(&tableInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("table (ID: %d) info get error", tableID)
+	if status := C.rte_swx_ctl_table_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_table_info)(&tableInfo)); status != 0 {
+		return nil, common.Err(status)
 	}
 	return &tableInfo, nil
 }
@@ -191,13 +209,19 @@ func (tmfi *TableMatchFieldInfo) GetOffset() int {
 	return int(tmfi.offset)
 }
 
-func (pl *Pipeline) TableMatchFieldInfoGet(tableID int, matchFieldID int) (*TableMatchFieldInfo, error) {
+// Table match field info get
+//
+// Get the table (tableID) match field (matchFieldID) info. Returns TableMatchFieldInfo on success or the following
+// error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) TableMatchFieldInfoGet(tableID uint, matchFieldID uint) (*TableMatchFieldInfo, error) {
 	var tableMatchFieldInfo TableMatchFieldInfo
 
-	status := C.rte_swx_ctl_table_match_field_info_get(
-		pl.p, (C.uint)(tableID), (C.uint)(matchFieldID), (*C.struct_rte_swx_ctl_table_match_field_info)(&tableMatchFieldInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("table (ID: %d) match field (ID: %d) info get error", tableID, matchFieldID)
+	if status := C.rte_swx_ctl_table_match_field_info_get(
+		pl.p, (C.uint)(tableID), (C.uint)(matchFieldID), (*C.struct_rte_swx_ctl_table_match_field_info)(&tableMatchFieldInfo),
+	); status != 0 {
+		return nil, common.Err(status)
 	}
 	return &tableMatchFieldInfo, nil
 }
@@ -205,8 +229,8 @@ func (pl *Pipeline) TableMatchFieldInfoGet(tableID int, matchFieldID int) (*Tabl
 // information about table actions
 type TableActionInfo C.struct_rte_swx_ctl_table_action_info
 
-func (tai *TableActionInfo) GetActionID() int {
-	return int(tai.action_id)
+func (tai *TableActionInfo) GetActionID() uint {
+	return uint(tai.action_id)
 }
 
 func (tai *TableActionInfo) GetActionIsForTableEntries() bool {
@@ -217,13 +241,19 @@ func (tai *TableActionInfo) GetActionIsForDefaultEntry() bool {
 	return tai.action_is_for_default_entry > 0
 }
 
-func (pl *Pipeline) TableActionInfoGet(tableID int, actionID int) (*TableActionInfo, error) {
+// Table action info get
+//
+// Get the table (tableID) action (actionID) info. Returns TableActionInfo on success or the following error codes
+// otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) TableActionInfoGet(tableID uint, actionID uint) (*TableActionInfo, error) {
 	var tableActionInfo TableActionInfo
 
-	status := C.rte_swx_ctl_table_action_info_get(
-		pl.p, (C.uint)(tableID), (C.uint)(actionID), (*C.struct_rte_swx_ctl_table_action_info)(&tableActionInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("table (ID: %d) action (ID: %d) info get error", tableID, actionID)
+	if status := C.rte_swx_ctl_table_action_info_get(
+		pl.p, (C.uint)(tableID), (C.uint)(actionID), (*C.struct_rte_swx_ctl_table_action_info)(&tableActionInfo),
+	); status != 0 {
+		return nil, common.Err(status)
 	}
 	return &tableActionInfo, nil
 }
@@ -240,8 +270,8 @@ func (li *LearnerInfo) GetNMatchFields() uint {
 	return uint(li.n_match_fields)
 }
 
-func (li *LearnerInfo) GetNActions() uint32 {
-	return uint32(li.n_actions)
+func (li *LearnerInfo) GetNActions() uint {
+	return uint(li.n_actions)
 }
 
 func (li *LearnerInfo) DefaultActionIsConst() bool {
@@ -256,13 +286,72 @@ func (li *LearnerInfo) GetNKeyTimeouts() uint32 {
 	return uint32(li.n_key_timeouts)
 }
 
-func (pl *Pipeline) LearnerInfoGet(tableID int) (*LearnerInfo, error) {
+// Learner info get
+//
+// Get the learner table (tableID) info. Returns LearnerInfo on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) LearnerInfoGet(tableID uint) (*LearnerInfo, error) {
 	var learnerInfo LearnerInfo
 
-	status := C.rte_swx_ctl_learner_info_get(pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_learner_info)(&learnerInfo))
-	if status != 0 {
-		return nil, fmt.Errorf("learner table (ID: %d) info get error", tableID)
+	if status := C.rte_swx_ctl_learner_info_get(
+		pl.p, (C.uint)(tableID), (*C.struct_rte_swx_ctl_learner_info)(&learnerInfo),
+	); status != 0 {
+		return nil, common.Err(status)
 	}
-
 	return &learnerInfo, nil
+}
+
+// information about the structure of a register array
+type RegarrayInfo C.struct_rte_swx_ctl_regarray_info
+
+func (ra *RegarrayInfo) GetName() string {
+	return C.GoString(&ra.name[0])
+}
+
+func (ra *RegarrayInfo) GetSize() int {
+	return int(ra.size)
+}
+
+// Register array info get
+//
+// Get the register array (regarrayID) info. Returns RegarrayInfo on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) RegarrayInfoGet(regarrayID uint) (*RegarrayInfo, error) {
+	var regarrayInfo RegarrayInfo
+
+	if status := C.rte_swx_ctl_regarray_info_get(
+		pl.p, (C.uint)(regarrayID), (*C.struct_rte_swx_ctl_regarray_info)(&regarrayInfo),
+	); status != 0 {
+		return nil, common.Err(status)
+	}
+	return &regarrayInfo, nil
+}
+
+// information about the structure of a meter array
+type MetarrayInfo C.struct_rte_swx_ctl_metarray_info
+
+func (ma *MetarrayInfo) GetName() string {
+	return C.GoString(&ma.name[0])
+}
+
+func (ma *MetarrayInfo) GetSize() int {
+	return int(ma.size)
+}
+
+// Meter array info get
+//
+// Get the meter array (metarrayID) info. Returns MetarrayInfo on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (pl *Pipeline) MetarrayInfoGet(metarrayID uint) (*MetarrayInfo, error) {
+	var metarrayInfo MetarrayInfo
+
+	if status := C.rte_swx_ctl_metarray_info_get(
+		pl.p, (C.uint)(metarrayID), (*C.struct_rte_swx_ctl_metarray_info)(&metarrayInfo),
+	); status != 0 {
+		return nil, common.Err(status)
+	}
+	return &metarrayInfo, nil
 }

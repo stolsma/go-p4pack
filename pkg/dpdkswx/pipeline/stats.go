@@ -289,7 +289,7 @@ func (pl *Pipeline) StatsRead() (pls *Stats, err error) {
 
 	// get table stats
 	pls.TableStats = make([]*TableStats, pipeInfo.n_tables)
-	for i := 0; i < (int)(pipeInfo.n_tables); i++ {
+	for i := uint(0); i < (uint)(pipeInfo.n_tables); i++ {
 		tableInfo, err := pl.TableInfoGet(i)
 		if err != nil {
 			return nil, err
@@ -304,7 +304,7 @@ func (pl *Pipeline) StatsRead() (pls *Stats, err error) {
 
 	// get learner table stats
 	pls.LearnerStats = make([]*LearnerStats, pipeInfo.n_learners)
-	for i := 0; i < (int)(pipeInfo.n_learners); i++ {
+	for i := uint(0); i < (uint)(pipeInfo.n_learners); i++ {
 		li, err := pl.LearnerInfoGet(i)
 		if err != nil {
 			return nil, err

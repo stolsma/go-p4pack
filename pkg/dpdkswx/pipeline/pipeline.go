@@ -90,25 +90,23 @@ type swxPorts map[int]PortParamsType
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
 type Pipeline struct {
 	Ctl                                      // Pipeline Control Struct inclusion
-	name          string                     // name of the pipeline
+	name          string                     // Name of the pipeline
 	p             *C.struct_rte_swx_pipeline // Struct definition, only for swx internal use!
 	timerPeriodms uint                       //
-	build         bool                       // the pipeline is build
-	enabled       bool                       // the pipeline is enabled
+	build         bool                       // The pipeline is build
+	enabled       bool                       // The pipeline is enabled
 	threadID      uint                       // ID of the Lcore thread this pipeline is running on
-	portIn        swxPorts                   // All added input ports
-	portOut       swxPorts                   // all added output ports
-	actions       ActionStore                // all the defined actions in this pipeline when build
-	tables        TableStore                 // all the defined tables in this pipeline when build
-	// ports_in
-	// ports_out
-	// mirror slots
-	// mirror sessions
-	// selectors
-	// learners
-	// registerArray
-	// metadataArray
-	clean func() // the callback function called at clear
+	portsIn       swxPorts                   // All added input ports
+	portsOut      swxPorts                   // All added output ports
+	actions       ActionStore                // All the defined actions in this pipeline when build
+	tables        TableStore                 // All the defined tables in this pipeline when build
+	// TODO mirror slots
+	// TODO mirror sessions
+	// TODO selectors SelectorStore // All the defined selector tables in this pipeline when build
+	learners  LearnerStore  // All the defined learner tables in this pipeline when build
+	registers RegisterStore // All the defined registers in this pipeline when build
+	meters    MeterStore    // All the defined meters in this pipeline when build
+	clean     func()        // The callback function called at clear
 }
 
 // Initialize Pipeline. Returns an error if something went wrong.
@@ -125,7 +123,7 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 		return nil
 	})
 
-	// check if something went wring when executing on main
+	// check if something went wrong when executing on main
 	if err != nil {
 		return err
 	}
@@ -136,8 +134,8 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	pl.timerPeriodms = 100
 	pl.build = false
 	pl.enabled = false
-	pl.portIn = make(swxPorts, 265)
-	pl.portOut = make(swxPorts, 265)
+	pl.portsIn = make(swxPorts, 265)
+	pl.portsOut = make(swxPorts, 265)
 	pl.clean = clean
 
 	return nil
@@ -195,7 +193,7 @@ func (pl *Pipeline) IsEnabled() bool {
 }
 
 func (pl *Pipeline) PortInConfig(portID int, params PortParamsType) error {
-	if pl.portIn[portID] != nil {
+	if pl.portsIn[portID] != nil {
 		return errors.New("port already bound")
 	}
 
@@ -206,13 +204,13 @@ func (pl *Pipeline) PortInConfig(portID int, params PortParamsType) error {
 		return common.Err(status)
 	}
 
-	pl.portIn[portID] = params
+	pl.portsIn[portID] = params
 
 	return nil
 }
 
 func (pl *Pipeline) PortOutConfig(portID int, params PortParamsType) error {
-	if pl.portOut[portID] != nil {
+	if pl.portsOut[portID] != nil {
 		return errors.New("port already bound")
 	}
 
@@ -223,7 +221,7 @@ func (pl *Pipeline) PortOutConfig(portID int, params PortParamsType) error {
 		return common.Err(status)
 	}
 
-	pl.portOut[portID] = params
+	pl.portsOut[portID] = params
 
 	return nil
 }
@@ -249,6 +247,18 @@ func (pl *Pipeline) BuildFromSpec(specfile string) error {
 	// retrieve tables
 	pl.tables = CreateTableStore()
 	pl.tables.CreateFromPipeline(pl)
+
+	// retrieve learner tables
+	pl.learners = CreateLearnerStore()
+	pl.learners.CreateFromPipeline(pl)
+
+	// retrieve registers
+	pl.registers = CreateRegisterStore()
+	pl.registers.CreateFromPipeline(pl)
+
+	// retrieve meters
+	pl.meters = CreateMeterStore()
+	pl.meters.CreateFromPipeline(pl)
 
 	// TODO implement as ENUM state field???
 	// pipeline status is build!

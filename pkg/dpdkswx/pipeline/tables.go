@@ -8,25 +8,25 @@ import (
 )
 
 type TableMatchField struct {
-	index     int
+	index     uint
 	matchType int
 	isHeader  bool
 	nBits     int
 	offset    int
 }
 
-func (tmf *TableMatchField) GetIndex() int {
+func (tmf *TableMatchField) GetIndex() uint {
 	return tmf.index
 }
 
 // TableMatchFieldsStore represents a store of TableMatchFields records
-type TableMatchFieldStore map[int]*TableMatchField
+type TableMatchFieldStore map[uint]*TableMatchField
 
 func CreateTableMatchFieldsStore() TableMatchFieldStore {
 	return make(TableMatchFieldStore)
 }
 
-func (tmfs TableMatchFieldStore) FindIndex(index int) *TableMatchField {
+func (tmfs TableMatchFieldStore) FindIndex(index uint) *TableMatchField {
 	for _, tableMatchField := range tmfs {
 		if tableMatchField.GetIndex() == index {
 			return tableMatchField
@@ -39,7 +39,7 @@ func (tmfs TableMatchFieldStore) Add(tableMatchField *TableMatchField) {
 	tmfs[tableMatchField.GetIndex()] = tableMatchField
 }
 
-func (tmfs TableMatchFieldStore) ForEach(fn func(key int, tableMatchField *TableMatchField) error) error {
+func (tmfs TableMatchFieldStore) ForEach(fn func(key uint, tableMatchField *TableMatchField) error) error {
 	for k, v := range tmfs {
 		if err := fn(k, v); err != nil {
 			return err
@@ -56,13 +56,13 @@ func (tmfs TableMatchFieldStore) Clear() {
 }
 
 type TableAction struct {
-	index                   int
+	index                   uint
 	action                  *Action
 	actionIsForDefaultEntry bool
 	actionIsForTableEntries bool
 }
 
-func (ta *TableAction) GetIndex() int {
+func (ta *TableAction) GetIndex() uint {
 	return ta.index
 }
 
@@ -70,7 +70,7 @@ func (ta *TableAction) GetActionName() string {
 	return ta.action.GetName()
 }
 
-func (ta *TableAction) GetActionIndex() int {
+func (ta *TableAction) GetActionIndex() uint {
 	return ta.action.GetIndex()
 }
 
@@ -97,7 +97,7 @@ func (tas TableActionStore) FindName(name string) *TableAction {
 	return tas[name]
 }
 
-func (tas TableActionStore) FindIndex(index int) *TableAction {
+func (tas TableActionStore) FindIndex(index uint) *TableAction {
 	for _, tableAction := range tas {
 		if tableAction.GetIndex() == index {
 			return tableAction
@@ -127,11 +127,11 @@ func (tas TableActionStore) Clear() {
 }
 
 type Table struct {
-	index                int    // Index in swx_pipeline table store
+	index                uint   // Index in swx_pipeline table store
 	name                 string // Table name.
 	args                 string // Table creation arguments.
-	nMatchFields         int    // Number of match fields.
-	nActions             int    // Number of actions.
+	nMatchFields         uint   // Number of match fields.
+	nActions             uint   // Number of actions.
 	defaultActionIsConst bool   // true => the default action is constant; false => the default action not constant
 	size                 int    // Table size parameter.
 	matchFields          TableMatchFieldStore
@@ -139,7 +139,7 @@ type Table struct {
 }
 
 // Initialize table record from pipeline
-func (t *Table) Init(p *Pipeline, index int) error {
+func (t *Table) Init(p *Pipeline, index uint) error {
 	tableInfo, err := p.TableInfoGet(index)
 	if err != nil {
 		return err
@@ -156,7 +156,7 @@ func (t *Table) Init(p *Pipeline, index int) error {
 
 	// get all matchfields for this table
 	t.matchFields = CreateTableMatchFieldsStore()
-	for i := 0; i < t.nMatchFields; i++ {
+	for i := uint(0); i < t.nMatchFields; i++ {
 		tableMatchFieldInfo, err := p.TableMatchFieldInfoGet(index, i)
 		if err != nil {
 			return err
@@ -174,7 +174,7 @@ func (t *Table) Init(p *Pipeline, index int) error {
 
 	// get all actions for this table
 	t.actions = CreateTableActionStore()
-	for i := 0; i < t.nActions; i++ {
+	for i := uint(0); i < t.nActions; i++ {
 		tableActionInfo, err := p.TableActionInfoGet(index, i)
 		if err != nil {
 			return err
@@ -203,7 +203,7 @@ func (t *Table) Clear() {
 	// call given clean callback function if given during init
 }
 
-func (t *Table) GetIndex() int {
+func (t *Table) GetIndex() uint {
 	return t.index
 }
 
@@ -253,7 +253,7 @@ func (ts TableStore) CreateFromPipeline(p *Pipeline) error {
 		return err
 	}
 
-	for i := 0; i < pipelineInfo.GetNTables(); i++ {
+	for i := uint(0); i < pipelineInfo.GetNTables(); i++ {
 		var table Table
 
 		err := table.Init(p, i)

@@ -7,24 +7,26 @@ import "fmt"
 
 // represent an action argument description
 type ActionArg struct {
-	index int
-	ActionArgInfo
+	index         uint
+	ActionArgInfo // TODO implement native Go struct instead of C struct
 }
 
-func (aa *ActionArg) GetIndex() int {
+func (aa *ActionArg) GetIndex() uint {
 	return aa.index
 }
 
 type ActionArgStore map[string]*ActionArg
 
 type Action struct {
-	index      int            // index
+	index      uint           // index
 	name       string         // action name.
 	actionArgs ActionArgStore // action args
 }
 
-// Initialize Action record after creation
-func (a *Action) Init(p *Pipeline, index int) error {
+// Initialize Action record after creation. Returns nil on success or the following error codes otherwise:
+//
+//	-EINVAL = Invalid argument
+func (a *Action) Init(p *Pipeline, index uint) error {
 	actionInfo, err := p.ActionInfoGet(index)
 	if err != nil {
 		return err
@@ -36,7 +38,7 @@ func (a *Action) Init(p *Pipeline, index int) error {
 	a.actionArgs = make(ActionArgStore)
 
 	// get action arg information
-	for i := 0; i < actionInfo.GetNArgs(); i++ {
+	for i := uint(0); i < actionInfo.GetNArgs(); i++ {
 		actionArgInfo, err := p.ActionArgInfoGet(index, i)
 		if err != nil {
 			return err
@@ -49,7 +51,7 @@ func (a *Action) Init(p *Pipeline, index int) error {
 	return nil
 }
 
-func (a *Action) GetIndex() int {
+func (a *Action) GetIndex() uint {
 	return a.index
 }
 
@@ -72,7 +74,7 @@ func (as ActionStore) FindName(name string) *Action {
 	return as[name]
 }
 
-func (as ActionStore) FindIndex(index int) *Action {
+func (as ActionStore) FindIndex(index uint) *Action {
 	for _, action := range as {
 		if action.GetIndex() == index {
 			return action
@@ -87,7 +89,7 @@ func (as ActionStore) CreateFromPipeline(p *Pipeline) error {
 		return err
 	}
 
-	for i := 0; i < pipelineInfo.GetNActions(); i++ {
+	for i := uint(0); i < pipelineInfo.GetNActions(); i++ {
 		var action Action
 
 		err := action.Init(p, i)
