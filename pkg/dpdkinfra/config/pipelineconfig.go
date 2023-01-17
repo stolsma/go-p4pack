@@ -167,23 +167,25 @@ func (c PipelinesConfig) Apply(basePath string) error {
 		}
 		log.Infof("Pipeline %s enabled!", pipeName)
 
-		// Add Table startconfig
-		for _, table := range pConfig.Start.Tables {
-			for _, line := range table.Data {
-				err := dpdki.TableEntryAdd(pipeName, table.Name, line)
-				if err != nil {
-					return fmt.Errorf("table entry add went wrong (Pipeline: %s, Table: %s, Line: %s). err: %v",
-						pipeName, table.Name, line, err)
+		// Add Table startconfig if available
+		if pConfig.Start != nil && pConfig.Start.Tables != nil {
+			for _, table := range pConfig.Start.Tables {
+				for _, line := range table.Data {
+					err := dpdki.TableEntryAdd(pipeName, table.Name, line)
+					if err != nil {
+						return fmt.Errorf("table entry add went wrong (Pipeline: %s, Table: %s, Line: %s). err: %v",
+							pipeName, table.Name, line, err)
+					}
 				}
 			}
-		}
 
-		// Commit Table changes to pipeline
-		err = dpdki.PipelineCommit(pipeName)
-		if err != nil {
-			return fmt.Errorf("pipeline %s commit err: %v", pipeName, err)
+			// Commit Table changes to pipeline
+			err = dpdki.PipelineCommit(pipeName)
+			if err != nil {
+				return fmt.Errorf("pipeline %s commit err: %v", pipeName, err)
+			}
+			log.Infof("Table config on pipeline %s commited!", pipeName)
 		}
-		log.Infof("Table config on pipeline %s commited!", pipeName)
 	}
 
 	return nil
