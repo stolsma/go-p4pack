@@ -1,0 +1,142 @@
+{
+  "sshshell":{
+    "bind": ":2222",
+    "users": {
+      "user": {
+        "password": "notsecure"
+      }
+    },
+    "hostkeyfile": "./hostkey"
+  },
+  "chassis": {
+    "pktmbufs" : [{
+      "name": "MEMPOOL0",
+      "buffersize": 2304,
+      "poolsize": 32768,
+      "cachesize": 256,
+      "cpuid": 0
+    }],
+    "devices": [
+      "virtio_user0,path=/dev/vhost-net,queues=1,queue_size=32,iface=sw3",
+      "virtio_user1,path=/dev/vhost-net,queues=1,queue_size=32,iface=sw4"
+    ],
+    "interfaces" : [{
+      "name": "sw1",
+      "tap": {
+        "rx": {
+          "pktmbuf": "MEMPOOL0",
+          "mtu": 1514
+        }
+      }
+    },{
+      "name": "sw2",
+      "tap": {
+        "rx": {
+          "pktmbuf": "MEMPOOL0",
+          "mtu": 1514
+        }
+      }
+    },{
+      "name": "sw3",
+      "ethdev": {
+        "portname": "virtio_user0",
+        "rx": {
+          "mtu": 1500,
+          "nqueues": 1,
+          "queuesize": 32,
+          "pktmbuf": "MEMPOOL0",
+          "promiscuous": true
+        },
+        "tx": {
+          "nqueues": 1,
+          "queuesize": 32
+        }
+      }
+    },{
+      "name": "sw4",
+      "ethdev": {
+        "portname": "virtio_user1",
+        "rx": {
+          "mtu": 1500,
+          "nqueues": 1,
+          "queuesize": 32,
+          "pktmbuf": "MEMPOOL0",
+          "promiscuous": true
+        },
+        "tx": {
+          "nqueues": 1,
+          "queuesize": 32
+        }
+      }
+    }],
+    "pipelines" :[{
+      "name": "PIPELINE0",
+      "numanode": 0,
+      "threadid": 1,
+      "spec": "./linux_networking.spec",
+      "inputports": [{
+        "ifacename": "sw1",
+        "rxqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw2",
+        "rxqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw3",
+        "rxqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw4",
+        "rxqueue": 0,
+        "bsz": 1
+      }],
+      "outputports": [{
+        "ifacename": "sw1",
+        "txqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw2",
+        "txqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw3",
+        "txqueue": 0,
+        "bsz": 1
+      },{
+        "ifacename": "sw4",
+        "txqueue": 0,
+        "bsz": 1
+      }]
+    }]
+  },
+  "logging": {
+    "loggers": {
+      "root": {
+        "level": "info",
+        "output": {
+          "stdout": {
+            "sink": "stdout"
+          },
+          "file": {
+            "sink": "file"
+          }
+        }
+      }
+    },
+    "sinks": {
+      "stdout": {
+        "type": "stdout",
+        "encoding": "console",
+        "stdout": {}
+      },
+      "file": {
+        "type": "file",
+        "encoding": "json",	
+        "file": {
+          "path": "./test.log"
+        }
+      }
+    }
+  }
+}

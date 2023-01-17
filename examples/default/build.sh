@@ -5,4 +5,4 @@
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-docker run --rm -u 1000:1000 -v "${THIS_DIR}":/p4ccode -w /p4ccode ghcr.io/stolsma/p4c:latest /bin/bash -c "p4c-dpdk -o default.spec --p4runtime-files p4info.proto.txt default.p4"
+docker run --rm -u 1000:1000 -v "${THIS_DIR}":/p4ccode -w /p4ccode ghcr.io/stolsma/p4c:latest /bin/bash -c "p4c-dpdk --arch psa -o default.spec --p4runtime-files p4info.proto.txt --bf-rt-schema bf-rt.json --context context.json default.p4"
