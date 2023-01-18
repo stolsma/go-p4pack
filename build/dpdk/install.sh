@@ -33,6 +33,10 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends \
   python3-setuptools \
   python3-wheel\
   ca-certificates \
+  pciutils \
+  kmod \
+  iperf \
+  iperf3 \
   iproute2 \
   wget \
   xz-utils \
