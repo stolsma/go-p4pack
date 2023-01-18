@@ -55,16 +55,15 @@ Crossed functions are supported by this package. All functions are tagged 'exper
 
 ### added in DPDK 21.05
 
-- [ ] rte_swx_ctl_metarray_info_get;
-- [ ] rte_swx_ctl_meter_profile_add;
-- [ ] rte_swx_ctl_meter_profile_delete;
-- [ ] rte_swx_ctl_meter_reset;
-- [ ] rte_swx_ctl_meter_set;
-- [ ] rte_swx_ctl_meter_stats_read;
-- [ ] rte_swx_ctl_pipeline_regarray_read;
-- [ ] rte_swx_ctl_pipeline_regarray_write;
-- [ ] rte_swx_ctl_pipeline_table_stats_read;
-- [ ] rte_swx_ctl_regarray_info_get;
+- [x] rte_swx_ctl_metarray_info_get;
+- [x] rte_swx_ctl_meter_profile_delete;
+- [x] rte_swx_ctl_meter_reset;
+- [x] rte_swx_ctl_meter_set;
+- [x] rte_swx_ctl_meter_stats_read;
+- [x] rte_swx_ctl_pipeline_regarray_read;
+- [x] rte_swx_ctl_pipeline_regarray_write;
+- [x] rte_swx_ctl_pipeline_table_stats_read;
+- [x] rte_swx_ctl_regarray_info_get;
 - [ ] rte_swx_pipeline_metarray_config;
 - [ ] rte_swx_pipeline_regarray_config;
 
@@ -72,10 +71,10 @@ Crossed functions are supported by this package. All functions are tagged 'exper
 
 - [ ] rte_swx_pipeline_selector_config;
 - [ ] rte_swx_ctl_pipeline_selector_fprintf;
-- [ ] rte_swx_ctl_pipeline_selector_group_add;
-- [ ] rte_swx_ctl_pipeline_selector_group_delete;
-- [ ] rte_swx_ctl_pipeline_selector_group_member_add;
-- [ ] rte_swx_ctl_pipeline_selector_group_member_delete;
+- [x] rte_swx_ctl_pipeline_selector_group_add;
+- [x] rte_swx_ctl_pipeline_selector_group_delete;
+- [x] rte_swx_ctl_pipeline_selector_group_member_add;
+- [x] rte_swx_ctl_pipeline_selector_group_member_delete;
 - [ ] rte_swx_ctl_pipeline_selector_stats_read;
 - [ ] rte_swx_ctl_selector_info_get;
 - [ ] rte_swx_ctl_selector_field_info_get;
@@ -86,9 +85,9 @@ Crossed functions are supported by this package. All functions are tagged 'exper
 
 - [x] rte_swx_ctl_pipeline_learner_default_entry_add;
 - [x] rte_swx_ctl_pipeline_learner_default_entry_read;
-- [ ] rte_swx_ctl_pipeline_learner_stats_read;
+- [x] rte_swx_ctl_pipeline_learner_stats_read;
 - [ ] rte_swx_ctl_learner_action_info_get;
-- [ ] rte_swx_ctl_learner_info_get;
+- [x] rte_swx_ctl_learner_info_get;
 - [ ] rte_swx_ctl_learner_match_field_info_get;
 - [ ] rte_swx_pipeline_learner_config;
 
