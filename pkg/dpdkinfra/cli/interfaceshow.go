@@ -7,18 +7,19 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
-func interfaceShowCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceShowCmd(parents ...*cobra.Command) *cobra.Command {
 	showCmd := &cobra.Command{
 		Use:     "show [portname]",
 		Short:   "Show information of all (or one given) interface(s)",
 		Aliases: []string{"sh"},
 		Args:    cobra.MaximumNArgs(1),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completePortList,
-			AppendLastHelp(1, "This command does not take any more arguments"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -67,7 +68,5 @@ func interfaceShowCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(showCmd)
-
-	return showCmd
+	return cli.AddCommand(parents, showCmd)
 }

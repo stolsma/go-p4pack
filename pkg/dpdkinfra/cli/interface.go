@@ -5,37 +5,37 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
-func interfaceCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceCmd(parents ...*cobra.Command) *cobra.Command {
 	interfaceCmd := &cobra.Command{
 		Use:     "interface",
 		Short:   "Base command for all interface actions",
 		Aliases: []string{"int"},
 	}
 
-	interfaceDeviceCmd(interfaceCmd)
-	interfaceCreateCmd(interfaceCmd)
-	interfaceShowCmd(interfaceCmd)
-	interfaceStatsCmd(interfaceCmd)
-	interfaceLinkUpDownCmd(interfaceCmd)
-
-	parent.AddCommand(interfaceCmd)
+	InterfaceDeviceCmd(interfaceCmd)
+	InterfaceCreateCmd(interfaceCmd)
+	InterfaceShowCmd(interfaceCmd)
+	InterfaceStatsCmd(interfaceCmd)
+	InterfaceLinkUpDownCmd(interfaceCmd)
+	cli.AddCommand(parents, interfaceCmd)
 
 	return interfaceCmd
 }
 
-func interfaceLinkUpDownCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceLinkUpDownCmd(parents ...*cobra.Command) *cobra.Command {
 	ludCmd := &cobra.Command{
 		Use:     "link [name] [up/down]",
 		Short:   "Set the interface up or down",
 		Aliases: []string{"set"},
 		Args:    cobra.MaximumNArgs(2),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completePortList,
-			AppendHelp("Set the interface state to up or down (up/down)"),
-			AppendLastHelp(2, "This command does not take any more arguments"),
+			cli.AppendHelp("Set the interface state to up or down (up/down)"),
+			cli.AppendLastHelp(2, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -64,7 +64,6 @@ func interfaceLinkUpDownCmd(parent *cobra.Command) *cobra.Command {
 			cmd.Printf("Interface link state changed to: %v\n", ud)
 		},
 	}
-	parent.AddCommand(ludCmd)
 
-	return ludCmd
+	return cli.AddCommand(parents, ludCmd)
 }

@@ -10,37 +10,37 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pipeline"
 	"golang.org/x/net/context"
 )
 
-func pipelineCmd(parent *cobra.Command) *cobra.Command {
+func PipelineCmd(parents ...*cobra.Command) *cobra.Command {
 	var pipelineCmd = &cobra.Command{
 		Use:     "pipeline",
 		Short:   "pipeline",
 		Aliases: []string{"pl"},
 	}
 
-	pipelineBindCmd(pipelineCmd)
-	pipelineInfoCmd(pipelineCmd)
-	pipelineStatsCmd(pipelineCmd)
-	parent.AddCommand(pipelineCmd)
-	return pipelineCmd
+	PipelineBindCmd(pipelineCmd)
+	PipelineInfoCmd(pipelineCmd)
+	PipelineStatsCmd(pipelineCmd)
+	return cli.AddCommand(parents, pipelineCmd)
 }
 
-func pipelineBindCmd(parent *cobra.Command) *cobra.Command {
+func PipelineBindCmd(parents ...*cobra.Command) *cobra.Command {
 	bindCmd := &cobra.Command{
 		Use:     "bind [interface:{rx|tx}:queue#] [pipeline] [pipeline port] [burstsize]",
 		Short:   "b",
 		Aliases: []string{"bin"},
 		Args:    cobra.RangeArgs(2, 4),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completeUnboundQueueArg,
 			completeBuildNotEnabledPipelineArg,
-			AppendHelp("You must specify the pipeline port for the queue you are binding"),
-			AppendHelp("You must specify the burstsize for the queue you are binding"),
-			AppendLastHelp(4, "This command does not take any more arguments"),
+			cli.AppendHelp("You must specify the pipeline port for the queue you are binding"),
+			cli.AppendHelp("You must specify the burstsize for the queue you are binding"),
+			cli.AppendLastHelp(4, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			/* TODO Handle bind command
@@ -55,20 +55,18 @@ func pipelineBindCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(bindCmd)
-
-	return bindCmd
+	return cli.AddCommand(parents, bindCmd)
 }
 
-func pipelineInfoCmd(parent *cobra.Command) *cobra.Command {
+func PipelineInfoCmd(parents ...*cobra.Command) *cobra.Command {
 	infoCmd := &cobra.Command{
 		Use:     "info [pipeline]",
 		Short:   "i",
 		Aliases: []string{"i"},
 		Args:    cobra.MaximumNArgs(1),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completePipelineArg,
-			AppendLastHelp(1, "This command does not take any more arguments"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -92,21 +90,19 @@ func pipelineInfoCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(infoCmd)
-
-	return infoCmd
+	return cli.AddCommand(parents, infoCmd)
 }
 
-func pipelineStatsCmd(parent *cobra.Command) *cobra.Command {
+func PipelineStatsCmd(parents ...*cobra.Command) *cobra.Command {
 	var re, li, si bool
 	statsCmd := &cobra.Command{
 		Use:     "stats [pipeline]",
 		Short:   "st",
 		Aliases: []string{"st"},
 		Args:    cobra.MaximumNArgs(1),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completePipelineArg,
-			AppendLastHelp(1, "This command does not take any more arguments"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -127,7 +123,7 @@ func pipelineStatsCmd(parent *cobra.Command) *cobra.Command {
 				printRepeatedPipelineStats(ctx, cmd, dpdki, plName)
 
 				// wait for CTRL-C and then cancel output
-				waitForCtrlC(cmd.InOrStdin())
+				cli.WaitForCtrlC(cmd.InOrStdin())
 				cancelFn()
 				return
 			}
@@ -137,9 +133,7 @@ func pipelineStatsCmd(parent *cobra.Command) *cobra.Command {
 	statsCmd.Flags().BoolVarP(&li, "long", "l", false, "Show all information.")
 	statsCmd.Flags().BoolVarP(&si, "short", "s", true, "Show minimum information.")
 	statsCmd.MarkFlagsMutuallyExclusive("long", "short")
-
-	parent.AddCommand(statsCmd)
-	return statsCmd
+	return cli.AddCommand(parents, statsCmd)
 }
 
 func printRepeatedPipelineStats(ctx context.Context, cmd *cobra.Command, dpdki *dpdkinfra.DpdkInfra, plName string) {
@@ -191,7 +185,7 @@ func completePipelineArg(cmd *cobra.Command, args []string, toComplete string) (
 	listPl := pipelineList(AllPipelines)
 
 	// filter list with string to complete
-	completions := filterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
+	completions := cli.FilterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
 
 	return completions, directive
 }
@@ -204,7 +198,7 @@ func completeBuildNotEnabledPipelineArg(cmd *cobra.Command, args []string, toCom
 	listPl := pipelineList(BuildNotEnabledPipelines)
 
 	// filter list with string to complete
-	completions := filterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
+	completions := cli.FilterCompletions(listPl, toComplete, &directive, "No Pipelines available for completion!")
 
 	return completions, directive
 }
@@ -217,7 +211,7 @@ func completeUnboundQueueArg(cmd *cobra.Command, args []string, toComplete strin
 	qList := portQueueList(UnboundQueues)
 
 	// filter list with string to complete
-	completions := filterCompletions(qList, toComplete, &directive, "No queues available for completion!")
+	completions := cli.FilterCompletions(qList, toComplete, &directive, "No queues available for completion!")
 
 	return completions, directive
 }

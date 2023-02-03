@@ -8,35 +8,34 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/ethdev"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/tap"
 )
 
-func interfaceCreateCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceCreateCmd(parents ...*cobra.Command) *cobra.Command {
 	createCmd := &cobra.Command{
 		Use:     "create",
 		Short:   "Base command for all interface create actions",
 		Aliases: []string{"cr"},
 	}
 
-	interfaceCreateTapCmd(createCmd)
-	interfaceCreateEthdevCmd(createCmd)
-	parent.AddCommand(createCmd)
-
-	return createCmd
+	InterfaceCreateTapCmd(createCmd)
+	InterfaceCreateEthdevCmd(createCmd)
+	return cli.AddCommand(parents, createCmd)
 }
 
-func interfaceCreateTapCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceCreateTapCmd(parents ...*cobra.Command) *cobra.Command {
 	tapCmd := &cobra.Command{
 		Use:   "tap [name] [pktmbuf] [mtu]",
 		Short: "Create a tap interface on the system",
 		Args:  cobra.ExactArgs(3),
-		ValidArgsFunction: ValidateArguments(
-			AppendHelp("You must choose a name for the tap interface you are adding"),
+		ValidArgsFunction: cli.ValidateArguments(
+			cli.AppendHelp("You must choose a name for the tap interface you are adding"),
 			completePktmbufArg,
-			AppendHelp("You must specify the MTU for the tap interface you are adding"),
-			AppendLastHelp(3, "This command does not take any more arguments"),
+			cli.AppendHelp("You must specify the MTU for the tap interface you are adding"),
+			cli.AppendLastHelp(3, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -69,27 +68,25 @@ func interfaceCreateTapCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(tapCmd)
-
-	return tapCmd
+	return cli.AddCommand(parents, tapCmd)
 }
 
-func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceCreateEthdevCmd(parents ...*cobra.Command) *cobra.Command {
 	ethdevCmd := &cobra.Command{
 		Use:   "ethdev [name] [device] [pktmbuf] [# tx queues] [tx queuesize] [# rx queues] [rx queuesize] [mtu] [promiscuous]",
 		Short: "Create an ethdev interface on the system",
 		Args:  cobra.MatchAll(cobra.MinimumNArgs(7), cobra.MaximumNArgs(9)),
-		ValidArgsFunction: ValidateArguments(
-			AppendHelp("You must choose a name for the ethdev interface you are adding"),
+		ValidArgsFunction: cli.ValidateArguments(
+			cli.AppendHelp("You must choose a name for the ethdev interface you are adding"),
 			completeUnusedEthdevPortList,
 			completePktmbufArg,
-			AppendHelp("You must specify the number of transmit queues for the ethdev interface you are adding"),
-			AppendHelp("You must specify the transmit queuesize for the ethdev interface you are adding"),
-			AppendHelp("You must specify the number of receive queues for the ethdev interface you are adding"),
-			AppendHelp("You must specify the receive queuesize for the ethdev interface you are adding"),
-			AppendHelp("You must specify the MTU for the ethdev interface you are adding (0/none is default value of interface)"),
-			AppendHelp("You must specify the promiscuous mode for the tap interface you are adding (on/off, on is default)"),
-			AppendLastHelp(9, "This command does not take any more arguments"),
+			cli.AppendHelp("You must specify the number of transmit queues for the ethdev interface you are adding"),
+			cli.AppendHelp("You must specify the transmit queuesize for the ethdev interface you are adding"),
+			cli.AppendHelp("You must specify the number of receive queues for the ethdev interface you are adding"),
+			cli.AppendHelp("You must specify the receive queuesize for the ethdev interface you are adding"),
+			cli.AppendHelp("You must specify the MTU for the ethdev interface you are adding (0/none is default value of interface)"),
+			cli.AppendHelp("You must specify the promiscuous mode for the tap interface you are adding (on/off, on is default)"),
+			cli.AppendLastHelp(9, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -181,7 +178,5 @@ func interfaceCreateEthdevCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(ethdevCmd)
-
-	return ethdevCmd
+	return cli.AddCommand(parents, ethdevCmd)
 }

@@ -7,36 +7,37 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 	"github.com/stolsma/go-p4pack/pkg/dpdkswx/pktmbuf"
 )
 
-func pktmbufCmd(parent *cobra.Command) {
+func PktmbufCmd(parents ...*cobra.Command) *cobra.Command {
 	var pktmbufCmd = &cobra.Command{
 		Use:   "pktmbuf",
 		Short: "Base command for all pktmbuf actions",
 	}
 
-	pktmbufCreateCmd(pktmbufCmd)
-	pktmbufListCmd(pktmbufCmd)
-	parent.AddCommand(pktmbufCmd)
+	PktmbufCreateCmd(pktmbufCmd)
+	PktmbufListCmd(pktmbufCmd)
+	return cli.AddCommand(parents, pktmbufCmd)
 }
 
 // implements mempool MEMPOOL0 buffer 2304 pool 32K cache 256 cpu 0
-func pktmbufCreateCmd(parent *cobra.Command) *cobra.Command {
+func PktmbufCreateCmd(parents ...*cobra.Command) *cobra.Command {
 	createCmd := &cobra.Command{
 		Use:     "create [name] [buffersize] [poolsize] [cachesize] [numaid]",
 		Example: "Example: pktmbuf create [name] [buffersize] [poolsize] [cachesize] [numaid]",
 		Short:   "Create a pktmbuf",
 		Long:    `Create a pktmbuf with name, buffersize, poolsize, cachesize and numa-id`,
 		Args:    cobra.ExactArgs(5),
-		ValidArgsFunction: ValidateArguments(
-			AppendHelp("You must choose a name for the pktmbuf you are adding"),
-			AppendHelp("You must specify the buffersize for the pktmbuf you are adding"),
-			AppendHelp("You must specify the poolsize for the pktmbuf you are adding"),
-			AppendHelp("You must specify the cachesize for the pktmbuf you are adding"),
-			AppendHelp("You must specify the numa id for the pktmbuf you are adding"),
-			AppendLastHelp(5, "This command does not take any more arguments"),
+		ValidArgsFunction: cli.ValidateArguments(
+			cli.AppendHelp("You must choose a name for the pktmbuf you are adding"),
+			cli.AppendHelp("You must specify the buffersize for the pktmbuf you are adding"),
+			cli.AppendHelp("You must specify the poolsize for the pktmbuf you are adding"),
+			cli.AppendHelp("You must specify the cachesize for the pktmbuf you are adding"),
+			cli.AppendHelp("You must specify the numa id for the pktmbuf you are adding"),
+			cli.AppendLastHelp(5, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -74,12 +75,10 @@ func pktmbufCreateCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(createCmd)
-
-	return createCmd
+	return cli.AddCommand(parents, createCmd)
 }
 
-func pktmbufListCmd(parent *cobra.Command) *cobra.Command {
+func PktmbufListCmd(parents ...*cobra.Command) *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all created Pktmbuf",
@@ -97,7 +96,5 @@ func pktmbufListCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(listCmd)
-
-	return listCmd
+	return cli.AddCommand(parents, listCmd)
 }

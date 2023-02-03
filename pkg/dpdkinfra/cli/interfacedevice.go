@@ -5,32 +5,31 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
-func interfaceDeviceCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceDeviceCmd(parents ...*cobra.Command) *cobra.Command {
 	deviceCmd := &cobra.Command{
 		Use:     "device",
 		Short:   "Base command for all device actions",
 		Aliases: []string{"dev"},
 	}
 
-	interfaceDeviceListCmd(deviceCmd)
-	interfaceDeviceAttachCmd(deviceCmd)
-	interfaceDeviceDetachCmd(deviceCmd)
-	parent.AddCommand(deviceCmd)
-
-	return deviceCmd
+	InterfaceDeviceListCmd(deviceCmd)
+	InterfaceDeviceAttachCmd(deviceCmd)
+	InterfaceDeviceDetachCmd(deviceCmd)
+	return cli.AddCommand(parents, deviceCmd)
 }
 
-func interfaceDeviceListCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceDeviceListCmd(parents ...*cobra.Command) *cobra.Command {
 	var used, notused bool
 	listCmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List all attached (hotplug) devices on the system",
 		Aliases: []string{"l"},
-		ValidArgsFunction: ValidateArguments(
-			AppendLastHelp(0, "This command does not take any more arguments"),
+		ValidArgsFunction: cli.ValidateArguments(
+			cli.AppendLastHelp(0, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			var devices []string
@@ -57,20 +56,18 @@ func interfaceDeviceListCmd(parent *cobra.Command) *cobra.Command {
 	listCmd.Flags().BoolVarP(&used, "used", "u", false, "Show all used DPDK devices.")
 	listCmd.Flags().BoolVarP(&notused, "notused", "n", false, "Show all not used DPDK devices.")
 	listCmd.MarkFlagsMutuallyExclusive("used", "notused")
-	parent.AddCommand(listCmd)
-
-	return listCmd
+	return cli.AddCommand(parents, listCmd)
 }
 
-func interfaceDeviceAttachCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceDeviceAttachCmd(parents ...*cobra.Command) *cobra.Command {
 	attachCmd := &cobra.Command{
 		Use:     "attach [device argument string]",
 		Short:   "Attach a DPDK device on the system via hotplug procedure",
 		Aliases: []string{"a"},
 		Args:    cobra.ExactArgs(1),
-		ValidArgsFunction: ValidateArguments(
-			AppendHelp("You must specify the DPDK device argument string for the interface you are attaching"),
-			AppendLastHelp(1, "This command does not take any more arguments"),
+		ValidArgsFunction: cli.ValidateArguments(
+			cli.AppendHelp("You must specify the DPDK device argument string for the interface you are attaching"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -85,20 +82,18 @@ func interfaceDeviceAttachCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(attachCmd)
-
-	return attachCmd
+	return cli.AddCommand(parents, attachCmd)
 }
 
-func interfaceDeviceDetachCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceDeviceDetachCmd(parents ...*cobra.Command) *cobra.Command {
 	detachCmd := &cobra.Command{
 		Use:     "detach [device name]",
 		Short:   "Detach a DPDK device from the system via hotplug procedure",
 		Aliases: []string{"a"},
 		Args:    cobra.ExactArgs(1),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completeUnusedDeviceList,
-			AppendLastHelp(1, "This command does not take any more arguments"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -113,7 +108,5 @@ func interfaceDeviceDetachCmd(parent *cobra.Command) *cobra.Command {
 		},
 	}
 
-	parent.AddCommand(detachCmd)
-
-	return detachCmd
+	return cli.AddCommand(parents, detachCmd)
 }

@@ -22,9 +22,9 @@ func GetCommand(parent *cobra.Command) *cobra.Command {
 	log.Info("Adding dpdkinfra cli commands")
 
 	// add all dpdkinfra cli commands
-	pktmbufCmd(parent)
-	interfaceCmd(parent)
-	pipelineCmd(parent)
+	PktmbufCmd(parent)
+	InterfaceCmd(parent)
+	PipelineCmd(parent)
 
 	return parent
 }

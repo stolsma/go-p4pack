@@ -7,19 +7,20 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/dpdkinfra"
 )
 
-func interfaceStatsCmd(parent *cobra.Command) *cobra.Command {
+func InterfaceStatsCmd(parents ...*cobra.Command) *cobra.Command {
 	var re bool
 	statsCmd := &cobra.Command{
 		Use:     "stats [name]",
 		Short:   "Show statistics of all (or one given) interface(s)",
 		Aliases: []string{"st"},
 		Args:    cobra.MaximumNArgs(1),
-		ValidArgsFunction: ValidateArguments(
+		ValidArgsFunction: cli.ValidateArguments(
 			completePortList,
-			AppendLastHelp(1, "This command does not take any more arguments"),
+			cli.AppendLastHelp(1, "This command does not take any more arguments"),
 		),
 		Run: func(cmd *cobra.Command, args []string) {
 			dpdki := dpdkinfra.Get()
@@ -64,7 +65,5 @@ func interfaceStatsCmd(parent *cobra.Command) *cobra.Command {
 	}
 	statsCmd.Flags().BoolVarP(&re, "repeat", "r", false, "Continuously update statistics (every second), use CTRL-C to stop.")
 
-	parent.AddCommand(statsCmd)
-
-	return statsCmd
+	return cli.AddCommand(parents, statsCmd)
 }
