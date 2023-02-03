@@ -6,27 +6,29 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
-func getSetCommand() *cobra.Command {
-	cmd := &cobra.Command{
+func LogSetCommand(parents ...*cobra.Command) *cobra.Command {
+	setCmd := &cobra.Command{
 		Use:   "set",
 		Short: "Sets a logger attribute (e.g. level)",
 	}
-	cmd.AddCommand(getSetLevelCommand())
-	return cmd
+
+	LogSetLevelCommand(setCmd)
+	return cli.AddCommand(parents, setCmd)
 }
 
-func getSetLevelCommand() *cobra.Command {
-	cmd := &cobra.Command{
+func LogSetLevelCommand(parents ...*cobra.Command) *cobra.Command {
+	levelCmd := &cobra.Command{
 		Use:   "level logger_name",
 		Short: "Sets a logger level",
 		Args:  cobra.ExactArgs(2),
 		Run:   runSetLevelCommand,
 	}
 
-	return cmd
+	return cli.AddCommand(parents, levelCmd)
 }
 
 func runSetLevelCommand(cmd *cobra.Command, args []string) {

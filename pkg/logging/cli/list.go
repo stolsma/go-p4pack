@@ -4,17 +4,18 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/logging"
 )
 
-func getListCommand() *cobra.Command {
-	cmd := &cobra.Command{
+func LogListCommand(parents ...*cobra.Command) *cobra.Command {
+	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Shows all logger domains",
 		Run:   runListCommand,
 	}
 
-	return cmd
+	return cli.AddCommand(parents, listCmd)
 }
 
 func runListCommand(cmd *cobra.Command, args []string) {

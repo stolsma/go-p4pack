@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: 2020-2022 Open Networking Foundation <info@opennetworking.org>
 // SPDX-FileCopyrightText: 2022-present Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
@@ -6,18 +5,18 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 )
 
 // GetCommand returns the root command after adding the flowtest service commands
-func GetCommand(root *cobra.Command) *cobra.Command {
-	cmd := &cobra.Command{
+func GetCommand(parents ...*cobra.Command) *cobra.Command {
+	flowtestCmd := &cobra.Command{
 		Use:   "flowtest {start/stop} test [args]",
 		Short: "flowtest commands",
 	}
 
-	root.AddCommand(cmd)
-	cmd.AddCommand(getStartCommand())
-	cmd.AddCommand(getStopCommand())
+	FlowtestStartCmd(flowtestCmd)
+	FlowtestStopCmd(flowtestCmd)
 
-	return root
+	return cli.AddCommand(parents, flowtestCmd)
 }

@@ -21,9 +21,7 @@ func InterfaceCmd(parents ...*cobra.Command) *cobra.Command {
 	InterfaceShowCmd(interfaceCmd)
 	InterfaceStatsCmd(interfaceCmd)
 	InterfaceLinkUpDownCmd(interfaceCmd)
-	cli.AddCommand(parents, interfaceCmd)
-
-	return interfaceCmd
+	return cli.AddCommand(parents, interfaceCmd)
 }
 
 func InterfaceLinkUpDownCmd(parents ...*cobra.Command) *cobra.Command {

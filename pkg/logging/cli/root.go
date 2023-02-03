@@ -6,19 +6,18 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 )
 
 // GetCommand returns the root command after adding the logging service commands
-func GetCommand(root *cobra.Command) *cobra.Command {
-	cmd := &cobra.Command{
+func GetCommand(parents ...*cobra.Command) *cobra.Command {
+	logCmd := &cobra.Command{
 		Use:   "log {list}/{set/get} level [args]",
 		Short: "logging api commands",
 	}
 
-	root.AddCommand(cmd)
-	cmd.AddCommand(getListCommand())
-	cmd.AddCommand(getGetCommand())
-	cmd.AddCommand(getSetCommand())
-
-	return root
+	LogListCommand(logCmd)
+	LogGetCommand(logCmd)
+	LogSetCommand(logCmd)
+	return cli.AddCommand(parents, logCmd)
 }

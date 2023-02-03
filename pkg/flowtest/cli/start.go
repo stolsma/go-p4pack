@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: 2020-2022 Open Networking Foundation <info@opennetworking.org>
 // SPDX-FileCopyrightText: 2022-present Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
@@ -6,18 +5,19 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/stolsma/go-p4pack/pkg/cli"
 	"github.com/stolsma/go-p4pack/pkg/flowtest"
 )
 
-func getStartCommand() *cobra.Command {
-	cmd := &cobra.Command{
+func FlowtestStartCmd(parents ...*cobra.Command) *cobra.Command {
+	startCmd := &cobra.Command{
 		Use:   "start [flowtest name]",
 		Short: "Starts a defined flowtest or all if name omitted",
 		Args:  cobra.MaximumNArgs(1),
 		Run:   runStartFTCommand,
 	}
 
-	return cmd
+	return cli.AddCommand(parents, startCmd)
 }
 
 func runStartFTCommand(cmd *cobra.Command, args []string) {
