@@ -8,6 +8,7 @@ import (
 	dpdkinfracli "github.com/stolsma/go-p4pack/pkg/dpdkinfra/cli"
 	flowtestcli "github.com/stolsma/go-p4pack/pkg/flowtest/cli"
 	loggingcli "github.com/stolsma/go-p4pack/pkg/logging/cli"
+	pcidevicescli "github.com/stolsma/go-p4pack/pkg/pcidevices/cli"
 )
 
 // create SSH shell CLI handling interface
@@ -21,6 +22,7 @@ func createShellRoot() *cobra.Command {
 	cliRoot.CompletionOptions.DisableDefaultCmd = true // no completion create command
 	initExit(cliRoot)
 	initVersion(cliRoot)
+	pcidevicescli.GetCommand(cliRoot)
 	dpdkinfracli.GetCommand(cliRoot)
 	loggingcli.GetCommand(cliRoot)
 	flowtestcli.GetCommand(cliRoot)
