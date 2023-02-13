@@ -21,23 +21,30 @@ import (
 // Pipeline functions
 //
 
-func EnablePipeline(pl unsafe.Pointer, threadID uint, timerPeriodms uint) error {
-	res := C.thread_pipeline_enable(
-		C.uint(threadID), (*C.struct_rte_swx_pipeline)(pl), C.uint(timerPeriodms))
-	if res != 0 {
-		return common.Err(res)
-	}
-
-	return nil
-}
-
-func DisablePipeline(pl unsafe.Pointer, threadID uint) error {
-	res := C.thread_pipeline_disable(C.uint(threadID), (*C.struct_rte_swx_pipeline)(pl))
+func EnablePipeline(pl unsafe.Pointer, threadID uint) error {
+	res := C.pipeline_enable((*C.struct_rte_swx_pipeline)(pl), C.uint(threadID))
 	return common.Err(res)
 }
 
+func DisablePipeline(pl unsafe.Pointer) {
+	C.pipeline_disable((*C.struct_rte_swx_pipeline)(pl))
+}
+
 //
-// Thread public functions
+// Block functions
+//
+
+func EnableBlock(fn unsafe.Pointer, block unsafe.Pointer, threadID uint) error {
+	res := C.block_enable((C.block_run_f)(fn), block, C.uint(threadID))
+	return common.Err(res)
+}
+
+func DisableBlock(block unsafe.Pointer) {
+	C.block_disable(block)
+}
+
+//
+// Thread functions
 //
 
 func ThreadsInit() error {
@@ -52,9 +59,4 @@ func ThreadsStart() error {
 
 func ThreadsStop() error {
 	return nil
-}
-
-func ThreadsFree() error {
-	res := C.thread_free()
-	return common.Err(res)
 }

@@ -154,15 +154,14 @@ func (rt *Runtime) mainCoreJobListener() int {
 	return 0
 }
 
-// launch thread_main pipeline runners on all worker lcores, should be run at Start only!!!
+// launch thread_main dataplane runners on all dpdk worker lcores, should be run at Start only!!!
 func (rt *Runtime) launchWorkers() error {
-	// init per-lcore client contexts
+	// init per-lcore dataplane contexts
 	if err := ThreadsInit(); err != nil {
 		return err
 	}
 
-	// launch every EAL thread lcore function
-	// it should be success since we've just called rte_eal_init()
+	// launch every EAL worker lcore with dataplane runners
 	return ThreadsStart()
 }
 

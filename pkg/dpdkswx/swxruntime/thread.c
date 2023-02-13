@@ -1,11 +1,13 @@
-// Copyright(c) 2020 Intel Corporation
-// Copyright 2022 - Sander Tolsma. All rights reserved
+// Copyright(c) 2020-2023 Intel Corporation
+// Copyright 2022 - present Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
 #include <stdlib.h>
+#include <errno.h>
 
+#include <rte_atomic.h>
+#include <rte_common.h>
 #include <rte_lcore.h>
-#include <rte_ring.h>
 
 #include "thread.h"
 
@@ -13,13 +15,10 @@
 #define THREAD_PIPELINES_MAX 256
 #endif
 
-#ifndef THREAD_MSGQ_SIZE
-#define THREAD_MSGQ_SIZE 64
+#ifndef THREAD_BLOCKS_MAX
+#define THREAD_BLOCKS_MAX 256
 #endif
 
-#ifndef THREAD_TIMER_PERIOD_MS
-#define THREAD_TIMER_PERIOD_MS 100
-#endif
 
 // Pipeline instruction quanta: Needs to be big enough to do some meaningful work, but not too big to avoid starving
 // any other pipelines mapped to the same thread. For a pipeline that executes 10 instructions per packet, a quanta of
@@ -29,487 +28,355 @@
 #define PIPELINE_INSTR_QUANTA 1000
 #endif
 
-//
-// Control thread: data plane thread context definition
-//
-struct thread
-{
-	struct rte_ring *msgq_req;
-	struct rte_ring *msgq_rsp;
-	uint32_t initialized;
+/**
+ * In this design, there is a single control plane (CP) thread and one or multiple data plane (DP) threads. Each DP
+ * thread can run up to THREAD_PIPELINES_MAX pipelines and up to THREAD_BLOCKS_MAX blocks.
+ *
+ * The pipelines and blocks are single threaded, meaning that a given pipeline/block can be run by a single thread at
+ * any given time, so the same pipeline/block cannot show up in the list of pipelines/blocks of more than one thread at
+ * any specific moment.
+ *
+ * Each DP thread has its own context (struct thread instance), which it shares with the CP thread:
+ *  - Read-write by the CP thread;
+ *  - Read-only by the DP thread.
+ */
+struct block {
+	block_run_f block_func;
+	void *block;
 };
 
-static struct thread thread[RTE_MAX_LCORE];
-
-//
-// Data plane threads: context definition
-//
-
-struct thread_data
-{
-	struct rte_swx_pipeline *p[THREAD_PIPELINES_MAX];
-	uint32_t n_pipelines;
-
-	//	struct pipeline_data pipeline_data[THREAD_PIPELINES_MAX];
-	struct rte_ring *msgq_req;
-	struct rte_ring *msgq_rsp;
-	uint64_t timer_period; // Measured in CPU cycles.
-	uint64_t time_next;
-	uint64_t time_next_min;
+struct thread {
+	struct rte_swx_pipeline *pipelines[THREAD_PIPELINES_MAX];
+	struct block *blocks[THREAD_BLOCKS_MAX];
+	volatile uint64_t n_pipelines;
+	volatile uint64_t n_blocks;
+	int enabled;
 } __rte_cache_aligned;
 
-static struct thread_data thread_data[RTE_MAX_LCORE];
+static struct thread threads[RTE_MAX_LCORE];
 
-//
-// Control thread: data plane thread contexts initialization
-//
 
-// Free all msg queues from disabled threads
-void thread_free(void)
-{
-	uint32_t i;
+/**
+ * Control plane (CP) thread.
+ */
+int thread_init(void) {
+	uint32_t thread_id;
+	int status = 0;
 
-	for (i = 0; i < RTE_MAX_LCORE; i++)
-	{
-		struct thread *t = &thread[i];
-
-		if (!rte_lcore_is_enabled(i))
-			continue;
-
-		// MSGQs
-		if (t->msgq_req)
-			rte_ring_free(t->msgq_req);
-
-		if (t->msgq_rsp)
-			rte_ring_free(t->msgq_rsp);
-
-		t->initialized = 0;
-	}
-}
-
-// initialize lcore WORKER message queues and local data
-int thread_init(void)
-{
-	uint32_t i;
-
-	RTE_LCORE_FOREACH_WORKER(i)
-	{
-		char name[NAME_MAX];
-		struct rte_ring *msgq_req, *msgq_rsp;
-		struct thread *t = &thread[i];
-		struct thread_data *t_data = &thread_data[i];
-		uint32_t cpu_id = rte_lcore_to_socket_id(i);
-
-		// MSGQs
-		snprintf(name, sizeof(name), "THREAD-%04x-MSGQ-REQ", i);
-
-		msgq_req = rte_ring_create(name, THREAD_MSGQ_SIZE, cpu_id, RING_F_SP_ENQ | RING_F_SC_DEQ);
-
-		if (msgq_req == NULL)
-		{
-			thread_free();
-			return -1;
-		}
-
-		snprintf(name, sizeof(name), "THREAD-%04x-MSGQ-RSP", i);
-
-		msgq_rsp = rte_ring_create(name, THREAD_MSGQ_SIZE, cpu_id, RING_F_SP_ENQ | RING_F_SC_DEQ);
-
-		if (msgq_rsp == NULL)
-		{
-			rte_ring_free(msgq_req); // be sure to free req ring too!
-			thread_free();					 // free all previously initialized threads
-			return -1;
-		}
-
-		// Control thread records
-		t->msgq_req = msgq_req;
-		t->msgq_rsp = msgq_rsp;
-		t->initialized = 1;
-
-		// Data plane thread records
-		t_data->n_pipelines = 0;
-		t_data->msgq_req = msgq_req;
-		t_data->msgq_rsp = msgq_rsp;
-		t_data->timer_period = (rte_get_tsc_hz() * THREAD_TIMER_PERIOD_MS) / 1000;
-		t_data->time_next = rte_get_tsc_cycles() + t_data->timer_period;
-		t_data->time_next_min = t_data->time_next;
-	}
-
-	return 0;
-}
-
-// is the lcore WORKER thread running
-static inline int thread_is_running(uint32_t thread_id)
-{
-	enum rte_lcore_state_t thread_state;
-
-	thread_state = rte_eal_get_lcore_state(thread_id);
-	return (thread_state == RUNNING) ? 1 : 0;
-}
-
-//
-// Control thread & data plane threads: message definitions
-//
-
-enum thread_req_type
-{
-	THREAD_REQ_PIPELINE_ENABLE = 0,
-	THREAD_REQ_PIPELINE_DISABLE,
-	THREAD_REQ_MAX
-};
-
-struct thread_msg_req
-{
-	enum thread_req_type type;
-
-	union
-	{
-		struct
-		{
-			struct rte_swx_pipeline *p;
-			uint32_t timer_period_ms;
-		} pipeline_enable;
-
-		struct
-		{
-			struct rte_swx_pipeline *p;
-		} pipeline_disable;
-	};
-};
-
-struct thread_msg_rsp
-{
-	int status;
-};
-
-//
-// Control thread functions
-//
-
-static struct thread_msg_req *thread_msg_alloc(void)
-{
-	size_t size = RTE_MAX(sizeof(struct thread_msg_req), sizeof(struct thread_msg_rsp));
-	return calloc(1, size);
-}
-
-static void thread_msg_free(struct thread_msg_rsp *rsp)
-{
-	free(rsp);
-}
-
-static struct thread_msg_rsp *thread_msg_send_recv(uint32_t thread_id, struct thread_msg_req *req)
-{
-	struct thread *t = &thread[thread_id];
-	struct rte_ring *msgq_req = t->msgq_req;
-	struct rte_ring *msgq_rsp = t->msgq_rsp;
-	struct thread_msg_rsp *rsp;
-	int status;
-
-	// send
-	do
-	{
-		status = rte_ring_sp_enqueue(msgq_req, req);
-	} while (status == -ENOBUFS);
-
-	// recv
-	do
-	{
-		status = rte_ring_sc_dequeue(msgq_rsp, (void **)&rsp);
-	} while (status != 0);
-
-	return rsp;
-}
-
-int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint32_t timer_period_ms)
-{
-	struct thread *t;
-	struct thread_msg_req *req;
-	struct thread_msg_rsp *rsp;
-	int status;
-
-	// Check input params
-	if ((thread_id >= RTE_MAX_LCORE) || (pl == NULL))
-		return -1;
-
-	// thread data initialized?
-	t = &thread[thread_id];
-	if (t->initialized == 0)
-		return -1;
-
-	// if thread is not running do it the easy way without message via queue
-	if (!thread_is_running(thread_id))
-	{
-		struct thread_data *td = &thread_data[thread_id];
-
-		if (td->n_pipelines >= THREAD_PIPELINES_MAX)
-			return -1;
-
-		// Data plane thread
-		td->p[td->n_pipelines] = pl;
-		td->n_pipelines++;
-
-		return 0;
-	}
-
-	// if thread is running send through message queue
-
-	// Allocate request
-	req = thread_msg_alloc();
-	if (req == NULL)
-		return -1;
-
-	// Write request
-	req->type = THREAD_REQ_PIPELINE_ENABLE;
-	req->pipeline_enable.p = pl;
-	req->pipeline_enable.timer_period_ms = timer_period_ms;
-
-	// Send request and wait for response
-	rsp = thread_msg_send_recv(thread_id, req);
-
-	// Read response
-	status = rsp->status;
-
-	// Free response
-	thread_msg_free(rsp);
-
-	// Request completion
-	if (status)
-		return status;
-
-	return 0;
-}
-
-int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl)
-{
-	struct thread *t;
-	struct thread_msg_req *req;
-	struct thread_msg_rsp *rsp;
-	int status;
-
-	// Check input params
-	if ((thread_id >= RTE_MAX_LCORE) || (pl == NULL))
-		return -1;
-
-	// thread data initialized?
-	t = &thread[thread_id];
-	if (t->initialized == 0)
-		return -1;
-
-	// if thread is not running do it the easy way without message via queue
-	if (!thread_is_running(thread_id))
-	{
-		struct thread_data *td = &thread_data[thread_id];
+	RTE_LCORE_FOREACH_WORKER(thread_id) {
+		struct thread *t = &threads[thread_id];
 		uint32_t i;
 
-		for (i = 0; i < td->n_pipelines; i++)
-		{
-			if (td->p[i] != pl)
-				continue;
+		t->enabled = 1;
 
-			// Data plane thread
-			if (i < td->n_pipelines - 1)
-			{
-				struct rte_swx_pipeline *pipeline_last = td->p[td->n_pipelines - 1];
-				td->p[i] = pipeline_last;
+		for (i = 0; i < THREAD_BLOCKS_MAX; i++) {
+			struct block *b;
+
+			b = calloc(1, sizeof(struct block));
+			if (!b) {
+				status = -ENOMEM;
+				goto error;
 			}
 
-			td->n_pipelines--;
-
-			break;
+			t->blocks[i] = b;
 		}
-
-		return 0;
 	}
-
-	// if thread is running send through message queue
-
-	// Allocate request
-	req = thread_msg_alloc();
-	if (req == NULL)
-		return -1;
-
-	// Write request
-	req->type = THREAD_REQ_PIPELINE_DISABLE;
-	req->pipeline_disable.p = pl;
-
-	// Send request and wait for response
-	rsp = thread_msg_send_recv(thread_id, req);
-
-	// Read response
-	status = rsp->status;
-
-	// Free response
-	thread_msg_free(rsp);
-
-	// Request completion
-	if (status)
-		return status;
 
 	return 0;
-}
 
-//
-// Data plane threads functions: message handling
-//
+error:
+	RTE_LCORE_FOREACH_WORKER(thread_id) {
+		struct thread *t = &threads[thread_id];
+		uint32_t i;
 
-static inline struct thread_msg_req *thread_msg_recv(struct rte_ring *msgq_req)
-{
-	struct thread_msg_req *req;
+		t->enabled = 0;
 
-	int status = rte_ring_sc_dequeue(msgq_req, (void **)&req);
-	if (status != 0)
-		return NULL;
-
-	return req;
-}
-
-static inline void thread_msg_send(struct rte_ring *msgq_rsp, struct thread_msg_rsp *rsp)
-{
-	int status;
-
-	do
-	{
-		status = rte_ring_sp_enqueue(msgq_rsp, rsp);
-	} while (status == -ENOBUFS);
-}
-
-static struct thread_msg_rsp *thread_msg_handle_pipeline_enable(struct thread_data *t, struct thread_msg_req *req)
-{
-	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *)req;
-
-	// Request
-	if (t->n_pipelines >= THREAD_PIPELINES_MAX)
-	{
-		rsp->status = -1;
-		return rsp;
+		for (i = 0; i < THREAD_BLOCKS_MAX; i++) {
+			free(t->blocks[i]);
+			t->blocks[i] = NULL;
+		}
 	}
 
-	t->p[t->n_pipelines] = req->pipeline_enable.p;
-	t->n_pipelines++;
-
-	// Response
-	rsp->status = 0;
-	return rsp;
+	return status;
 }
 
-static struct thread_msg_rsp *thread_msg_handle_pipeline_disable(struct thread_data *t, struct thread_msg_req *req)
-{
-	struct thread_msg_rsp *rsp = (struct thread_msg_rsp *)req;
-	uint32_t n_pipelines = t->n_pipelines;
-	struct rte_swx_pipeline *pipeline = req->pipeline_disable.p;
-	uint32_t i;
+/**
+ * @brief Find which thread runs the given pipeline
+ * 
+ * @param p Pipeline to look for
+ * @return uint32_t Is the thread_id the pipeline runs on 
+ */
+static uint32_t pipeline_find(struct rte_swx_pipeline *p) {
+	uint32_t thread_id;
 
-	// find pipeline
-	for (i = 0; i < n_pipelines; i++)
-	{
-		if (t->p[i] != pipeline)
+	for (thread_id = 0; thread_id < RTE_MAX_LCORE; thread_id++) {
+		struct thread *t = &threads[thread_id];
+		uint32_t i;
+
+		if (!t->enabled)
 			continue;
 
-		if (i < n_pipelines - 1)
-		{
-			struct rte_swx_pipeline *pipeline_last = t->p[n_pipelines - 1];
-			t->p[i] = pipeline_last;
-		}
-
-		t->n_pipelines--;
-
-		rsp->status = 0;
-		return rsp;
+		for (i = 0; i < t->n_pipelines; i++)
+			if (t->pipelines[i] == p)
+				break;
 	}
 
-	// should not get here
-	rsp->status = 0;
-	return rsp;
+	return thread_id;
 }
 
-// handle all messages received during execution of the thread_main function
-static void thread_msg_handle(struct thread_data *t)
-{
-	for (;;)
-	{
-		struct thread_msg_req *req;
-		struct thread_msg_rsp *rsp;
+/**
+ * @brief Find which thread runs the given block
+ * 
+ * @param b block to look for
+ * @return uint32_t Is the thread_id the block runs on 
+ */
+static uint32_t block_find(void *b) {
+	uint32_t thread_id;
 
-		req = thread_msg_recv(t->msgq_req);
-		if (req == NULL)
-			break;
+	for (thread_id = 0; thread_id < RTE_MAX_LCORE; thread_id++) {
+		struct thread *t = &threads[thread_id];
+		uint32_t i;
 
-		switch (req->type)
-		{
-		case THREAD_REQ_PIPELINE_ENABLE:
-			rsp = thread_msg_handle_pipeline_enable(t, req);
-			break;
+		if (!t->enabled)
+			continue;
 
-		case THREAD_REQ_PIPELINE_DISABLE:
-			rsp = thread_msg_handle_pipeline_disable(t, req);
-			break;
-
-		default:
-			rsp = (struct thread_msg_rsp *)req;
-			rsp->status = -1;
-		}
-
-		thread_msg_send(t->msgq_rsp, rsp);
+		for (i = 0; i < t->n_blocks; i++)
+			if (t->blocks[i]->block == b)
+				break;
 	}
+
+	return thread_id;
 }
 
-//
-// Data plane threads functions: main function and start
-//
+/**
+ * Enable a given pipeline to run on a specific DP thread.
+ *
+ * CP thread:
+ *  - Adds a new pipeline to the end of the DP thread pipeline list (t->pipelines[]);
+ *  - Increments the DP thread number of pipelines (t->n_pipelines). It is important to make sure
+ *    that t->pipelines[] update is completed BEFORE the t->n_pipelines update, hence the memory
+ *    write barrier used below.
+ *
+ * DP thread:
+ *  - Reads t->n_pipelines before starting every new iteration through t->pipelines[]. It detects
+ *    the new pipeline when it sees the updated t->n_pipelines value;
+ *  - If somehow the above condition is not met, so t->n_pipelines update is incorrectly taking
+ *    place before the t->pipelines[] update is completed, then the DP thread will use an incorrect
+ *    handle for the new pipeline, which can result in memory corruption or segmentation fault.
+ */
+int pipeline_enable(struct rte_swx_pipeline *p, uint32_t thread_id) {
+	struct thread *t;
+	uint64_t n_pipelines;
 
-// Function executed on all WORKER lcores
-int thread_main(void *arg __rte_unused)
-{
-	struct thread_data *t;
+	/* Check input params */
+	if (!p || thread_id >= RTE_MAX_LCORE)
+		return -EINVAL;
+
+	if (pipeline_find(p) < RTE_MAX_LCORE)
+		return -EEXIST;
+
+	t = &threads[thread_id];
+	if (!t->enabled)
+		return -EINVAL;
+
+	n_pipelines = t->n_pipelines;
+
+	/* Check there is room for at least one more pipeline. */
+	if (n_pipelines >= THREAD_PIPELINES_MAX)
+		return -ENOSPC;
+
+	/* Install the new pipeline. */
+	t->pipelines[n_pipelines] = p;
+	rte_wmb();
+	t->n_pipelines = n_pipelines + 1;
+
+	return 0;
+}
+
+/**
+ * Disable a given pipeline from running on any DP thread.
+ *
+ * CP thread:
+ *  - Detects the thread that is running the given pipeline, if any;
+ *  - Writes the last pipeline handle (pipeline_last = t->pipelines[t->n_pipelines - 1]) on the
+ *    position of the pipeline to be disabled (t->pipelines[i] = pipeline_last) and decrements the
+ *    number of pipelines running on the current thread (t->n_pipelines--). This approach makes sure
+ *    that no holes with invalid locations are ever developed within the t->pipelines[] array.
+ *  - If the memory barrier below is present, then t->n_pipelines update is guaranteed to take place
+ *    after the t->pipelines[] update is completed. The possible DP thread behaviors are detailed
+ *    below, which are all valid:
+ *     - Not run the removed pipeline at all, run all the other pipelines (including pipeline_last)
+ *       exactly one time during the current dispatch loop iteration. This takes place when the DP
+ *       thread sees the final value of t->n_pipelines;
+ *     - Not run the removed pipeline at all, run all the other pipelines, except pipeline_last,
+ *       exactly one time and the pipeline_last exactly two times during the current dispatch loop
+ *       iteration. This takes place when the DP thread sees the initial value of t->n_pipelines.
+ *  - If the memory barrier below is not present, then the t->n_pipelines update may be reordered by
+ *    the CPU, so that it takes place before the t->pipelines[] update. The possible DP thread
+ *    behaviors are detailed below, which are all valid:
+ *     - Not run the removed pipeline at all, run all the other pipelines (including pipeline_last)
+ *       exactly one time during the current dispatch loop iteration. This takes place when the DP
+ *       thread sees the final values of the t->pipeline[] array;
+ *     - Run the removed pipeline one last time, run all the other pipelines exactly one time, with
+ *       the exception of the pipeline_last, which is not run during the current dispatch loop
+ *       iteration. This takes place when the DP thread sees the initial values of t->pipeline[].
+ *
+ * DP thread:
+ *  - Reads t->n_pipelines before starting every new iteration through t->pipelines[].
+ */
+void pipeline_disable(struct rte_swx_pipeline *p) {
+	struct thread *t;
+	uint64_t n_pipelines;
 	uint32_t thread_id, i;
 
+	/* Check input params */
+	if (!p)
+		return;
+
+	/* Find the thread that runs this pipeline. */
+	thread_id = pipeline_find(p);
+	if (thread_id == RTE_MAX_LCORE)
+		return;
+
+	t = &threads[thread_id];
+	n_pipelines = t->n_pipelines;
+
+	for (i = 0; i < n_pipelines; i++) {
+		struct rte_swx_pipeline *pipeline = t->pipelines[i];
+
+		if (pipeline != p)
+			continue;
+
+		if (i < n_pipelines - 1) {
+			struct rte_swx_pipeline *pipeline_last = t->pipelines[n_pipelines - 1];
+
+			t->pipelines[i] = pipeline_last;
+		}
+
+		rte_wmb();
+		t->n_pipelines = n_pipelines - 1;
+
+		return;
+	}
+
+	return;
+}
+
+/**
+ * Enable a given block to run on a specific DP thread.
+ */
+int block_enable(block_run_f block_func, void *block, uint32_t thread_id) {
+	struct thread *t;
+	uint64_t n_blocks;
+
+	/* Check input params */
+	if (!block_func || !block || thread_id >= RTE_MAX_LCORE)
+		return -EINVAL;
+
+	if (block_find(block) < RTE_MAX_LCORE)
+		return -EEXIST;
+
+	t = &threads[thread_id];
+	if (!t->enabled)
+		return -EINVAL;
+
+	n_blocks = t->n_blocks;
+
+	/* Check there is room for at least one more block. */
+	if (n_blocks >= THREAD_BLOCKS_MAX)
+		return -ENOSPC;
+
+	/* Install the new block. */
+	t->blocks[n_blocks]->block_func = block_func;
+	t->blocks[n_blocks]->block = block;
+
+	rte_wmb();
+	t->n_blocks = n_blocks + 1;
+
+	return 0;
+}
+
+/**
+ * Disable a given block from running on any DP thread.
+ */
+void block_disable(void *block) {
+	struct thread *t;
+	uint64_t n_blocks;
+	uint32_t thread_id, i;
+
+	/* Check input params */
+	if (!block)
+		return;
+
+	/* Find the thread that runs this block. */
+	thread_id = block_find(block);
+	if (thread_id == RTE_MAX_LCORE)
+		return;
+
+	t = &threads[thread_id];
+	n_blocks = t->n_blocks;
+
+	for (i = 0; i < n_blocks; i++) {
+		struct block *b = t->blocks[i];
+
+		if (block != b->block)
+			continue;
+
+		if (i < n_blocks - 1) {
+			struct block *block_last = t->blocks[n_blocks - 1];
+
+			t->blocks[i] = block_last;
+		}
+
+		rte_wmb();
+		t->n_blocks = n_blocks - 1;
+
+		rte_wmb();
+		t->blocks[n_blocks - 1] = b;
+
+		return;
+	}
+}
+
+/**
+ * Data plane (DP) threads.
+ *
+ * The t->n_pipelines variable is modified by the CP thread every time changes to the t->pipeline[]
+ * array are operated, so it is therefore very important that the latest value of t->n_pipelines is
+ * read by the DP thread at the beginning of every new dispatch loop iteration, otherwise a stale
+ * t->n_pipelines value may result in new pipelines not being detected, running pipelines that have
+ * been removed and are possibly no longer valid (e.g. when the pipeline_last is removed), running
+ * one pipeline (pipeline_last) twice as frequently than the rest of the pipelines (e.g. when a
+ * pipeline other than pipeline_last is removed), etc. This is the reason why t->n_pipelines is
+ * marked as volatile. Same reasoning is also applicable for blocks.
+ */
+int thread_main(void *arg __rte_unused) {
+	struct thread *t;
+	uint32_t thread_id;
+
 	thread_id = rte_lcore_id();
-	t = &thread_data[thread_id];
+	t = &threads[thread_id];
 
-	// Dispatch loop
-	for (i = 0;; i++)
-	{
-		uint32_t j;
+	/* Dispatch loop. */
+	for ( ; ; ) {
+		uint32_t i;
 
-		// Data Plane
-		for (j = 0; j < t->n_pipelines; j++)
-			rte_swx_pipeline_run(t->p[j], PIPELINE_INSTR_QUANTA);
+		/* Pipelines. */
+		for (i = 0; i < t->n_pipelines; i++)
+			rte_swx_pipeline_run(t->pipelines[i], PIPELINE_INSTR_QUANTA);
 
-		// Control Plane
-		if ((i & 0xF) == 0)
-		{
-			uint64_t time = rte_get_tsc_cycles();
-			uint64_t time_next_min = UINT64_MAX;
-
-			if (time < t->time_next_min)
-				continue;
-
-			// Thread message queues
-			{
-				uint64_t time_next = t->time_next;
-
-				if (time_next <= time)
-				{
-					thread_msg_handle(t);
-					time_next = time + t->timer_period;
-					t->time_next = time_next;
-				}
-
-				if (time_next < time_next_min)
-					time_next_min = time_next;
-			}
-
-			t->time_next_min = time_next_min;
+		/* Blocks. */
+		for (i = 0; i < t->n_blocks; i++) {
+			struct block *b = t->blocks[i];
+			b->block_func(b->block);
 		}
 	}
 
 	return 0;
 }
 
-// Start all SWX WORKER threads
-int thread_start(void)
-{
+// Start all SWX Dataplane WORKER threads
+int thread_start(void) {
 	int status = 0;
 	status = rte_eal_mp_remote_launch(thread_main, NULL, SKIP_MAIN);
 	return status;

@@ -1,3 +1,4 @@
+// Copyright(c) 2020 Intel Corporation
 // Copyright 2022 - Sander Tolsma. All rights reserved
 // SPDX-License-Identifier: Apache-2.0
 
@@ -7,14 +8,28 @@
 #include <stdint.h>
 #include <rte_swx_pipeline.h>
 
-#ifndef NAME_MAX
-#define NAME_MAX 64
-#endif
+/**
+ * Control plane (CP) thread.
+ */
 
-void thread_free(void);
-int thread_pipeline_enable(uint32_t thread_id, struct rte_swx_pipeline *pl, uint32_t timer_period_ms);
-int thread_pipeline_disable(uint32_t thread_id, struct rte_swx_pipeline *pl);
 int thread_init(void);
+
+// pipeline
+
+int pipeline_enable(struct rte_swx_pipeline *p, uint32_t thread_id);
+void pipeline_disable(struct rte_swx_pipeline *p);
+
+// block
+
+typedef void (*block_run_f)(void *block);
+int block_enable(block_run_f block_func, void *block, uint32_t thread_id);
+void block_disable(void *block);
+
+/**
+ * Data plane (DP) threads.
+ */
+
+int thread_main(void *arg);
 
 /*
  * Check that all configured WORKER lcores are in WAIT state, then run the thread_main function on all of them.

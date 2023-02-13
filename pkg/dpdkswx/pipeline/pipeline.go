@@ -77,6 +77,11 @@ func init() {
 	})
 }
 
+const (
+	MaxPortsIn  = 256
+	MaxPortsOut = 256
+)
+
 type PortParamsType interface {
 	PortName() string
 	PortType() string
@@ -89,17 +94,16 @@ type swxPorts map[int]PortParamsType
 
 // Pipeline represents a DPDK Pipeline record in a Pipeline store
 type Pipeline struct {
-	Ctl                                      // Pipeline Control Struct inclusion
-	name          string                     // Name of the pipeline
-	p             *C.struct_rte_swx_pipeline // Struct definition, only for swx internal use!
-	timerPeriodms uint                       //
-	build         bool                       // The pipeline is build
-	enabled       bool                       // The pipeline is enabled
-	threadID      uint                       // ID of the Lcore thread this pipeline is running on
-	portsIn       swxPorts                   // All added input ports
-	portsOut      swxPorts                   // All added output ports
-	actions       ActionStore                // All the defined actions in this pipeline when build
-	tables        TableStore                 // All the defined tables in this pipeline when build
+	Ctl                                 // Pipeline Control Struct inclusion
+	name     string                     // Name of the pipeline
+	p        *C.struct_rte_swx_pipeline // Struct definition, only for swx internal use!
+	build    bool                       // The pipeline is build
+	enabled  bool                       // The pipeline is enabled
+	threadID uint                       // ID of the Lcore thread this pipeline is running on
+	portsIn  swxPorts                   // All added input ports
+	portsOut swxPorts                   // All added output ports
+	actions  ActionStore                // All the defined actions in this pipeline when build
+	tables   TableStore                 // All the defined tables in this pipeline when build
 	// TODO mirror slots
 	// TODO mirror sessions
 	// TODO selectors SelectorStore // All the defined selector tables in this pipeline when build
@@ -131,11 +135,10 @@ func (pl *Pipeline) Init(name string, numaNode int, clean func()) error {
 	// Node fill in
 	pl.name = name
 	pl.p = p
-	pl.timerPeriodms = 100
 	pl.build = false
 	pl.enabled = false
-	pl.portsIn = make(swxPorts, 265)
-	pl.portsOut = make(swxPorts, 265)
+	pl.portsIn = make(swxPorts, MaxPortsIn)
+	pl.portsOut = make(swxPorts, MaxPortsOut)
 	pl.clean = clean
 
 	return nil
@@ -149,11 +152,11 @@ func (pl *Pipeline) Free() (err error) {
 
 		err = dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
 			if pl.enabled {
-				err = swxruntime.DisablePipeline(pl.GetPipeline(), pl.threadID)
+				swxruntime.DisablePipeline(pl.GetPipeline())
 			}
 			pl.Ctl.Free()
 			C.rte_swx_pipeline_free(pl.p)
-			return err
+			return nil
 		})
 
 		pl.build = false
@@ -178,10 +181,6 @@ func (pl *Pipeline) GetThreadID() uint {
 
 func (pl *Pipeline) GetPipeline() unsafe.Pointer {
 	return unsafe.Pointer(pl.p)
-}
-
-func (pl *Pipeline) GetTimerPeriodms() uint {
-	return pl.timerPeriodms
 }
 
 func (pl *Pipeline) IsBuild() bool {
@@ -274,7 +273,7 @@ func (pl *Pipeline) SetEnabled(threadID uint) error {
 	}
 
 	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
-		return swxruntime.EnablePipeline(pl.GetPipeline(), threadID, pl.timerPeriodms)
+		return swxruntime.EnablePipeline(pl.GetPipeline(), threadID)
 	})
 	if err != nil {
 		return err
@@ -293,7 +292,8 @@ func (pl *Pipeline) SetDisabled() error {
 	}
 
 	err := dpdkswx.Runtime.ExecOnMain(func(*swxruntime.MainCtx) error {
-		return swxruntime.DisablePipeline(pl.GetPipeline(), pl.threadID)
+		swxruntime.DisablePipeline(pl.GetPipeline())
+		return nil
 	})
 	if err != nil {
 		return err
