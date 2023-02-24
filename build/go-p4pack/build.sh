@@ -32,8 +32,8 @@ done
 
 readonly DEFAULT_DPDK_TAG=ghcr.io/stolsma/dpdk-base:dpdk-22.07-ubuntu-20.04
 readonly DEFAULT_IMAGE_NAME=ghcr.io/stolsma/go-p4pack
-readonly DEFAULT_GOP4PACK_VERSION=1.0rc1
-readonly DEFAULT_GOLANG_VERSION=1.18
+readonly DEFAULT_GOP4PACK_VERSION=1.0rc2
+readonly DEFAULT_GOLANG_VERSION=1.20
 
 export DPDK_TAG=${DPDK_TAG:-$DEFAULT_DPDK_TAG}
 export IMAGE_NAME=${IMAGE_NAME:-$DEFAULT_IMAGE_NAME}
